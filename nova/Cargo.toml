@@ -21,3 +21,12 @@ path = "../examples/falling_boxes.rs"
 [[example]]
 name = "joints"
 path = "../examples/joints.rs"
+
+[[test]]
+name = "integration_tests"
+path = "../tests/integration_tests.rs"
+
+[[bench]]
+name = "physics_bench"
+path = "../benches/physics_bench.rs"
+harness = false

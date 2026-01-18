@@ -27,12 +27,12 @@ pub struct SolverConfig {
 impl Default for SolverConfig {
     fn default() -> Self {
         Self {
-            velocity_iterations: 8,
-            position_iterations: 4,
-            baumgarte: 0.2,
-            slop: 0.005,
-            max_correction: 0.2,
-            warm_start_factor: 0.8,
+            velocity_iterations: 20,
+            position_iterations: 10,
+            baumgarte: 0.4,
+            slop: 0.001,
+            max_correction: 0.3,
+            warm_start_factor: 0.9,
         }
     }
 }

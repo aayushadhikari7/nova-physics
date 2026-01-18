@@ -22,11 +22,24 @@ use crate::shapes::{BoxShape, CapsuleShape, CollisionShape, SphereShape};
 pub struct NarrowPhase {
     /// Active contact manifolds
     manifolds: hashbrown::HashMap<ColliderPair, ContactManifold>,
+    /// Pairs that were updated this frame (for stale manifold cleanup)
+    updated_pairs: hashbrown::HashSet<ColliderPair>,
 }
 
 impl NarrowPhase {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Begin a new frame - clears the set of updated pairs
+    pub fn begin_frame(&mut self) {
+        self.updated_pairs.clear();
+    }
+
+    /// End a frame - removes manifolds for pairs that weren't updated
+    pub fn end_frame(&mut self) {
+        self.manifolds
+            .retain(|pair, _| self.updated_pairs.contains(pair));
     }
 
     /// Get all contact manifolds
@@ -42,6 +55,7 @@ impl NarrowPhase {
     /// Clear all manifolds
     pub fn clear(&mut self) {
         self.manifolds.clear();
+        self.updated_pairs.clear();
     }
 
     /// Update collision detection for a pair of colliders
@@ -55,6 +69,9 @@ impl NarrowPhase {
         transform_b: &Isometry,
     ) {
         let pair = ColliderPair::new(handle_a, handle_b);
+
+        // Mark this pair as processed this frame
+        self.updated_pairs.insert(pair);
 
         let world_transform_a = transform_a.mul(&collider_a.local_transform);
         let world_transform_b = transform_b.mul(&collider_b.local_transform);
@@ -186,7 +203,7 @@ fn sphere_capsule(
     let t = ((sphere_center - world_a).dot(ab) / ab.length_squared()).clamp(0.0, 1.0);
     let closest_on_segment = world_a + ab * t;
 
-    let diff = sphere_center - closest_on_segment;
+    let diff = closest_on_segment - sphere_center; // From sphere (A) to capsule (B)
     let dist_sq = diff.length_squared();
     let sum_radii = sphere.radius + capsule.radius;
 
@@ -195,6 +212,7 @@ fn sphere_capsule(
     }
 
     let dist = dist_sq.sqrt();
+    // Normal points from A (sphere) to B (capsule)
     let normal = if dist > nova_math::EPSILON {
         diff / dist
     } else {
@@ -202,8 +220,10 @@ fn sphere_capsule(
     };
 
     let depth = sum_radii - dist;
-    let point_a = sphere_center - normal * sphere.radius;
-    let point_b = closest_on_segment + normal * capsule.radius;
+    // point_a is on sphere surface in direction of normal (toward capsule)
+    let point_a = sphere_center + normal * sphere.radius;
+    // point_b is on capsule surface in opposite direction of normal (toward sphere)
+    let point_b = closest_on_segment - normal * capsule.radius;
 
     let mut manifold = ContactManifold::new();
     manifold.normal = normal;
@@ -235,7 +255,7 @@ fn sphere_box(
     let closest_local = box_shape.closest_local_point(local_center);
     let closest_world = box_transform.transform_point(closest_local);
 
-    let diff = sphere_center - closest_world;
+    let diff = closest_world - sphere_center; // From sphere (A) to box (B)
     let dist_sq = diff.length_squared();
 
     if dist_sq >= sphere.radius * sphere.radius {
@@ -245,8 +265,9 @@ fn sphere_box(
     let dist = dist_sq.sqrt();
 
     // Handle case when sphere center is inside box
+    // Normal should point from A (sphere) to B (box)
     let (normal, depth) = if dist < nova_math::EPSILON {
-        // Find the closest face
+        // Find the closest face - normal points toward the face (outward from sphere's perspective)
         let distances = [
             box_shape.half_extents.x - local_center.x.abs(),
             box_shape.half_extents.y - local_center.y.abs(),
@@ -260,6 +281,7 @@ fn sphere_box(
             .unwrap();
 
         let mut normal_local = Vec3::ZERO;
+        // Normal points toward the box face the sphere is closest to (from sphere toward box surface)
         normal_local[min_axis] = if local_center[min_axis] >= 0.0 {
             1.0
         } else {
@@ -269,10 +291,11 @@ fn sphere_box(
         let normal_world = box_transform.transform_vector(normal_local);
         (normal_world, sphere.radius + min_dist)
     } else {
-        (diff / dist, sphere.radius - dist)
+        (diff / dist, sphere.radius - dist) // Normal points from sphere to box
     };
 
-    let point_a = sphere_center - normal * sphere.radius;
+    // point_a is on sphere surface in direction of normal (toward box)
+    let point_a = sphere_center + normal * sphere.radius;
 
     let mut manifold = ContactManifold::new();
     manifold.normal = normal;

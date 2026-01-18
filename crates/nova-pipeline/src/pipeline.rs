@@ -34,7 +34,7 @@ impl Default for PipelineConfig {
     fn default() -> Self {
         Self {
             gravity: Vec3::new(0.0, -9.81, 0.0),
-            substeps: 1,
+            substeps: 2,
             solver_config: SolverConfig::default(),
             sleeping_config: SleepingConfig::default(),
             integrator_type: IntegratorType::SemiImplicitEuler,
@@ -152,6 +152,7 @@ impl PhysicsPipeline {
 
         // 4. Narrow phase collision detection
         self.island_manager.clear();
+        self.narrow_phase.begin_frame();
 
         for pair in &pairs {
             let Some(collider_a) = colliders.get(pair.first) else {
@@ -187,6 +188,9 @@ impl PhysicsPipeline {
                     .add_contact(collider_a.parent, collider_b.parent);
             }
         }
+
+        // Remove stale manifolds for pairs no longer in broad phase
+        self.narrow_phase.end_frame();
 
         // 5. Build islands
         self.island_manager
