@@ -1,0 +1,12 @@
+[package]
+name = "nova-constraints"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Joints and constraints for Nova Physics Engine"
+
+[dependencies]
+nova-math.workspace = true
+nova-core.workspace = true
+nova-dynamics.workspace = true
+slotmap.workspace = true

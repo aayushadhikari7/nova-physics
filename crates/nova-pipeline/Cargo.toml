@@ -1,0 +1,16 @@
+[package]
+name = "nova-pipeline"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Pipeline orchestration for Nova Physics Engine"
+
+[dependencies]
+nova-math.workspace = true
+nova-core.workspace = true
+nova-collision.workspace = true
+nova-dynamics.workspace = true
+nova-constraints.workspace = true
+rayon.workspace = true
+slotmap.workspace = true
+hashbrown.workspace = true

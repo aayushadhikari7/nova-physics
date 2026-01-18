@@ -1,0 +1,9 @@
+[package]
+name = "nova-math"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Math primitives for Nova Physics Engine"
+
+[dependencies]
+glam.workspace = true

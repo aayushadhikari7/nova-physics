@@ -1,0 +1,47 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/nova-math",
+    "crates/nova-core",
+    "crates/nova-collision",
+    "crates/nova-dynamics",
+    "crates/nova-constraints",
+    "crates/nova-pipeline",
+    "crates/nova-world",
+    "nova",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+license = "MIT OR Apache-2.0"
+repository = "https://github.com/example/nova-physics"
+rust-version = "1.85"
+
+[workspace.dependencies]
+# Internal crates
+nova-math = { path = "crates/nova-math" }
+nova-core = { path = "crates/nova-core" }
+nova-collision = { path = "crates/nova-collision" }
+nova-dynamics = { path = "crates/nova-dynamics" }
+nova-constraints = { path = "crates/nova-constraints" }
+nova-pipeline = { path = "crates/nova-pipeline" }
+nova-world = { path = "crates/nova-world" }
+
+# External dependencies
+glam = { version = "0.29", features = ["std", "approx"] }
+rayon = "1.10"
+slotmap = "1.0"
+smallvec = "1.13"
+hashbrown = "0.15"
+bitflags = "2.6"
+thiserror = "2.0"
+parking_lot = "0.12"
+wide = "0.7"
+
+[profile.release]
+lto = true
+codegen-units = 1
+
+[profile.bench]
+lto = true

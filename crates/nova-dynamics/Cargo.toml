@@ -1,0 +1,16 @@
+[package]
+name = "nova-dynamics"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Rigid body dynamics for Nova Physics Engine"
+
+[dependencies]
+nova-math.workspace = true
+nova-core.workspace = true
+nova-collision.workspace = true
+smallvec.workspace = true
+rayon.workspace = true
+hashbrown.workspace = true
+slotmap.workspace = true
+glam.workspace = true

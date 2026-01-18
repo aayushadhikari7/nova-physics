@@ -1,0 +1,15 @@
+[package]
+name = "nova-world"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "High-level World API for Nova Physics Engine"
+
+[dependencies]
+nova-math.workspace = true
+nova-core.workspace = true
+nova-collision.workspace = true
+nova-dynamics.workspace = true
+nova-constraints.workspace = true
+nova-pipeline.workspace = true
+slotmap.workspace = true

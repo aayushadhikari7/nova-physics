@@ -1,0 +1,23 @@
+[package]
+name = "nova"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+description = "Nova Physics Engine - A production-grade 3D physics engine"
+
+[dependencies]
+nova-math.workspace = true
+nova-core.workspace = true
+nova-collision.workspace = true
+nova-dynamics.workspace = true
+nova-constraints.workspace = true
+nova-pipeline.workspace = true
+nova-world.workspace = true
+
+[[example]]
+name = "falling_boxes"
+path = "../examples/falling_boxes.rs"
+
+[[example]]
+name = "joints"
+path = "../examples/joints.rs"
