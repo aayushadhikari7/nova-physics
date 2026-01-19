@@ -1,0 +1,20 @@
+[package]
+name = "nova-playground"
+version = "0.1.0"
+edition = "2024"
+description = "A Minecraft-themed 3D physics sandbox built with Bevy, integrating the Nova physics engine"
+rust-version = "1.85"
+
+[dependencies]
+nova = { path = "../nova" }
+bevy = "0.15"
+rand = "0.8"
+
+[build-dependencies]
+winres = "0.1"
+
+[package.metadata.winres]
+OriginalFilename = "nova-playground.exe"
+LegalCopyright = "Nova Physics"
+FileDescription = "Nova Physics Playground - 3D Physics Sandbox"
+ProductName = "Nova Physics Playground"

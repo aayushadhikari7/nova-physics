@@ -9,6 +9,7 @@ members = [
     "crates/nova-pipeline",
     "crates/nova-world",
     "nova",
+    "playground",
 ]
 
 [workspace.package]

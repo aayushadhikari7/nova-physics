@@ -1,6 +1,6 @@
 # Nova Physics Engine
 
-A production-grade 3D physics engine written in Rust.
+A production-grade 3D physics engine written in Rust, with an interactive playground for testing and experimentation.
 
 ## Features
 
@@ -8,7 +8,7 @@ A production-grade 3D physics engine written in Rust.
 - **Collision Detection**: GJK, EPA, and SAT algorithms with broad-phase BVH acceleration
 - **Multiple Shape Types**: Sphere, Capsule, Box, ConvexHull, TriMesh, and Compound shapes
 - **Constraint Solver**: Sequential impulse solver with warm starting
-- **Joints**: Ball, Hinge, Prismatic, Fixed, and Distance joints with motor support
+- **Joints**: Ball, Hinge, Prismatic, Fixed, Distance, Spring, and Rope joints with motor support
 - **Spatial Queries**: Raycast, shapecast, and overlap queries
 - **Sleeping System**: Automatic deactivation of resting bodies for performance
 - **Island Detection**: Isolated simulation groups for parallel solving
@@ -28,10 +28,62 @@ physics-engine/
 │   ├── nova-constraints/    # Joints and constraints
 │   ├── nova-pipeline/       # Simulation orchestration
 │   └── nova-world/          # High-level World API
+├── playground/              # Interactive 3D physics sandbox (Bevy)
 ├── examples/
 ├── benches/
 └── tests/
 ```
+
+## Nova Physics Playground
+
+An interactive 3D physics sandbox built with Bevy for testing and experimenting with the Nova physics engine.
+
+### Running the Playground
+
+```bash
+cargo run -p nova-playground
+```
+
+### Controls
+
+| Key | Action |
+|-----|--------|
+| WASD | Move camera |
+| Space/Ctrl | Move up/down |
+| Shift | Sprint |
+| Mouse | Look around |
+| 1-9 | Select hotbar slot |
+| Q/Z | Previous/Next hotbar page |
+| E | Open inventory |
+| P | Pause/Unpause |
+| [ / ] | Slow down / Speed up time |
+| R | Reset scene |
+| Tab | Cycle tool options |
+| F1-F4 | Debug visualizations |
+| F11 | Toggle fullscreen |
+| Esc | Exit |
+
+### Features
+
+**Shapes**: Box, Sphere, Capsule, Cylinder, Cone, Compound, Random
+
+**Tools**:
+- Gravity Gun - Grab and throw objects
+- Force Gun - Push/pull objects with impulse
+- Explosion - Create explosive forces
+- Joint Tool - Connect objects (7 joint types)
+- Delete - Remove objects
+- Freeze - Immobilize objects
+- Clone - Duplicate objects
+- Magnet - Attract/repel objects
+- Launch Cannon - Fire projectiles
+- Painter - Change object colors
+
+**Presets**: Tower, Pyramid, Ragdoll, Newton's Cradle, Wrecking Ball, Dominos, Bridge, Catapult, Car, Pendulum Wall, Box Rain, Spiral Staircase, Cannon, Ferris Wheel, Windmill, Chain
+
+**Special Zones**: Gravity Zone, Force Field (Vortex, Radial, Turbulence), Trampoline, Conveyor, Fan
+
+**Materials**: Normal, Bouncy, Sticky, Slippery, Heavy, Light, Rubber, Metal, Ice, Wood
 
 ## Quick Start
 
@@ -104,25 +156,19 @@ CollisionShape::TriMesh(TriMesh::new(vertices, indices))
 
 ```rust
 // Ball joint (3 DOF rotation)
-world.create_joint(body_a, body_b)
-    .ball_joint()
-    .local_anchor_a(Vec3::new(0.0, 1.0, 0.0))
-    .local_anchor_b(Vec3::new(0.0, -1.0, 0.0))
-    .build();
+world.create_ball_joint(body_a, body_b, anchor_a, anchor_b);
 
 // Hinge joint (1 DOF rotation)
-world.create_joint(body_a, body_b)
-    .hinge_joint(Vec3::Y)  // axis
-    .local_anchor_a(Vec3::ZERO)
-    .local_anchor_b(Vec3::ZERO)
-    .build();
+world.create_hinge_joint(body_a, body_b, anchor_a, anchor_b, axis);
+
+// Fixed joint (0 DOF)
+world.create_fixed_joint(body_a, body_b, anchor_a, anchor_b);
 
 // Distance joint (spring)
-world.create_joint(body_a, body_b)
-    .distance_joint(2.0)  // rest length
-    .stiffness(100.0)
-    .damping(5.0)
-    .build();
+world.create_distance_joint(body_a, body_b, anchor_a, anchor_b, rest_length);
+
+// Prismatic joint (1 DOF translation)
+world.create_prismatic_joint(body_a, body_b, anchor_a, anchor_b, axis);
 ```
 
 ## Spatial Queries
@@ -155,6 +201,7 @@ let colliders = world.aabb_query(&aabb, QueryFilter::default());
 - `rayon` - Parallel iteration
 - `hashbrown` - Fast hash maps
 - `smallvec` - Inline small vectors
+- `bevy` - Game engine (playground only)
 
 ## Building
 
@@ -167,6 +214,9 @@ cargo test
 
 # Run benchmarks
 cargo bench
+
+# Run the playground
+cargo run -p nova-playground
 
 # Run examples
 cargo run --example falling_boxes

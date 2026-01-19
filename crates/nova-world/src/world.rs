@@ -289,6 +289,16 @@ impl PhysicsWorld {
         self.joints.len()
     }
 
+    /// Iterate over all joints
+    pub fn joints(&self) -> impl Iterator<Item = (JointHandle, &Joint)> {
+        self.joints.iter()
+    }
+
+    /// Iterate over all colliders
+    pub fn colliders(&self) -> impl Iterator<Item = (ColliderHandle, &Collider)> {
+        self.colliders.iter()
+    }
+
     // ==================== Simulation ====================
 
     /// Step the simulation forward by dt seconds

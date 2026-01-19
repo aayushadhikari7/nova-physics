@@ -22,6 +22,13 @@ path = "../examples/falling_boxes.rs"
 name = "joints"
 path = "../examples/joints.rs"
 
+[[example]]
+name = "playground"
+path = "../examples/playground.rs"
+
+[dev-dependencies]
+macroquad = "0.4"
+
 [[test]]
 name = "integration_tests"
 path = "../tests/integration_tests.rs"
