@@ -1,10 +1,14 @@
 //! Object spawning system
 
+use bevy::color::LinearRgba;
 use bevy::prelude::*;
 use nova::prelude::*;
 use rand::Rng;
 
-use crate::components::{DynamicBody, PhysicsBody, PhysicsCollider, PhysicsMaterialType, SpawnedObject};
+use crate::components::{
+    AutoDespawn, Breakable, DynamicBody, Explosive, Glowing, MagnetObject, PhysicsBody,
+    PhysicsCollider, PhysicsMaterialType, SpawnedObject, Spinner,
+};
 use crate::convert::{to_bevy_vec3, to_nova_vec3};
 use crate::plugins::camera::PlayerCamera;
 use crate::resources::{HandleToEntity, Hotbar, HotbarItem, NovaWorld, SelectedSlot};
@@ -458,6 +462,59 @@ fn spawn_system(
                 &mut materials,
                 spawn_pos,
                 Vec3::Y,
+            );
+        }
+        // === PHYSICS OBJECTS ===
+        HotbarItem::SpawnBreakable => {
+            spawn_breakable(
+                &mut nova,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                &mut handle_to_entity,
+                spawn_pos,
+                color,
+            );
+        }
+        HotbarItem::SpawnExplosive => {
+            spawn_explosive(
+                &mut nova,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                &mut handle_to_entity,
+                spawn_pos,
+            );
+        }
+        HotbarItem::SpawnSpinner => {
+            spawn_spinner(
+                &mut nova,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                &mut handle_to_entity,
+                spawn_pos,
+            );
+        }
+        HotbarItem::SpawnMagnetObj => {
+            spawn_magnet_object(
+                &mut nova,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                &mut handle_to_entity,
+                spawn_pos,
+            );
+        }
+        HotbarItem::SpawnGlowing => {
+            spawn_glowing(
+                &mut nova,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                &mut handle_to_entity,
+                spawn_pos,
+                color,
             );
         }
         _ => {}
@@ -1062,4 +1119,343 @@ pub fn spawn_fan(
         crate::plugins::effects::ForceFieldMode::Directional(direction),
         400.0, // strength
     );
+}
+
+// ============ PHYSICS OBJECTS ============
+
+/// Spawn a breakable box that shatters on high-impulse collision
+pub fn spawn_breakable(
+    nova: &mut NovaWorld,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    handle_to_entity: &mut HandleToEntity,
+    position: Vec3,
+    color: Color,
+) -> Entity {
+    let nova_pos = to_nova_vec3(position);
+    let half_extents = nova::prelude::Vec3::new(0.5, 0.5, 0.5);
+
+    let body = nova
+        .world
+        .create_body()
+        .body_type(RigidBodyType::Dynamic)
+        .position(nova_pos)
+        .mass(1.5)
+        .build();
+    let body_handle = nova.world.insert_body(body);
+
+    let collider = nova
+        .world
+        .create_collider(body_handle, CollisionShape::Box(BoxShape::new(half_extents)))
+        .friction(0.5)
+        .restitution(0.2)
+        .build();
+    let collider_handle = nova.world.insert_collider(collider);
+
+    // Breakable box with crack lines visual
+    let entity = commands
+        .spawn((
+            Mesh3d(meshes.add(Cuboid::new(1.0, 1.0, 1.0))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(0.6, 0.4, 0.3), // Brownish clay-like
+                ..default()
+            })),
+            Transform::from_translation(position),
+            PhysicsBody { handle: body_handle },
+            PhysicsCollider { handle: collider_handle },
+            DynamicBody,
+            SpawnedObject,
+            Breakable {
+                impulse_threshold: 10.0, // Breaks when moving faster than this
+                pieces: 6,
+            },
+        ))
+        .id();
+
+    handle_to_entity.bodies.insert(body_handle, entity);
+    handle_to_entity.colliders.insert(collider_handle, entity);
+
+    entity
+}
+
+/// Spawn an explosive that explodes on collision
+pub fn spawn_explosive(
+    nova: &mut NovaWorld,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    handle_to_entity: &mut HandleToEntity,
+    position: Vec3,
+) -> Entity {
+    let nova_pos = to_nova_vec3(position);
+
+    let body = nova
+        .world
+        .create_body()
+        .body_type(RigidBodyType::Dynamic)
+        .position(nova_pos)
+        .mass(2.0)
+        .build();
+    let body_handle = nova.world.insert_body(body);
+
+    let collider = nova
+        .world
+        .create_collider(body_handle, CollisionShape::Sphere(SphereShape::new(0.4)))
+        .friction(0.6)
+        .restitution(0.1)
+        .build();
+    let collider_handle = nova.world.insert_collider(collider);
+
+    // Red glowing explosive ball
+    let entity = commands
+        .spawn((
+            Mesh3d(meshes.add(Sphere::new(0.4))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(0.8, 0.2, 0.1),
+                emissive: LinearRgba::new(2.0, 0.3, 0.1, 1.0),
+                ..default()
+            })),
+            Transform::from_translation(position),
+            PhysicsBody { handle: body_handle },
+            PhysicsCollider { handle: collider_handle },
+            DynamicBody,
+            SpawnedObject,
+            Explosive {
+                radius: 8.0,
+                force: 800.0,
+                triggered: false,
+            },
+        ))
+        .id();
+
+    handle_to_entity.bodies.insert(body_handle, entity);
+    handle_to_entity.colliders.insert(collider_handle, entity);
+
+    entity
+}
+
+/// Spawn a spinner object that auto-rotates
+pub fn spawn_spinner(
+    nova: &mut NovaWorld,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    handle_to_entity: &mut HandleToEntity,
+    position: Vec3,
+) -> Entity {
+    let nova_pos = to_nova_vec3(position);
+    let half_extents = nova::prelude::Vec3::new(1.5, 0.1, 0.3);
+
+    let body = nova
+        .world
+        .create_body()
+        .body_type(RigidBodyType::Dynamic)
+        .position(nova_pos)
+        .mass(5.0)
+        .build();
+    let body_handle = nova.world.insert_body(body);
+
+    let collider = nova
+        .world
+        .create_collider(body_handle, CollisionShape::Box(BoxShape::new(half_extents)))
+        .friction(0.4)
+        .restitution(0.3)
+        .build();
+    let collider_handle = nova.world.insert_collider(collider);
+
+    // Long rotating bar
+    let entity = commands
+        .spawn((
+            Mesh3d(meshes.add(Cuboid::new(3.0, 0.2, 0.6))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(0.4, 0.6, 0.9),
+                metallic: 0.8,
+                ..default()
+            })),
+            Transform::from_translation(position),
+            PhysicsBody { handle: body_handle },
+            PhysicsCollider { handle: collider_handle },
+            DynamicBody,
+            SpawnedObject,
+            Spinner {
+                axis: Vec3::Y,
+                speed: 5.0,
+            },
+        ))
+        .id();
+
+    handle_to_entity.bodies.insert(body_handle, entity);
+    handle_to_entity.colliders.insert(collider_handle, entity);
+
+    entity
+}
+
+/// Spawn a magnet object that attracts nearby bodies
+pub fn spawn_magnet_object(
+    nova: &mut NovaWorld,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    handle_to_entity: &mut HandleToEntity,
+    position: Vec3,
+) -> Entity {
+    let nova_pos = to_nova_vec3(position);
+
+    let body = nova
+        .world
+        .create_body()
+        .body_type(RigidBodyType::Dynamic)
+        .position(nova_pos)
+        .mass(3.0)
+        .build();
+    let body_handle = nova.world.insert_body(body);
+
+    let collider = nova
+        .world
+        .create_collider(body_handle, CollisionShape::Sphere(SphereShape::new(0.5)))
+        .friction(0.5)
+        .restitution(0.2)
+        .build();
+    let collider_handle = nova.world.insert_collider(collider);
+
+    // Metallic magnet sphere with red tint
+    let entity = commands
+        .spawn((
+            Mesh3d(meshes.add(Sphere::new(0.5))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(0.7, 0.1, 0.1),
+                metallic: 1.0,
+                perceptual_roughness: 0.2,
+                ..default()
+            })),
+            Transform::from_translation(position),
+            PhysicsBody { handle: body_handle },
+            PhysicsCollider { handle: collider_handle },
+            DynamicBody,
+            SpawnedObject,
+            MagnetObject {
+                strength: 300.0,
+                radius: 8.0,
+                attract: true,
+            },
+        ))
+        .id();
+
+    handle_to_entity.bodies.insert(body_handle, entity);
+    handle_to_entity.colliders.insert(collider_handle, entity);
+
+    entity
+}
+
+/// Spawn a glowing object with pulsing emissive material
+pub fn spawn_glowing(
+    nova: &mut NovaWorld,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    handle_to_entity: &mut HandleToEntity,
+    position: Vec3,
+    color: Color,
+) -> Entity {
+    let nova_pos = to_nova_vec3(position);
+
+    let body = nova
+        .world
+        .create_body()
+        .body_type(RigidBodyType::Dynamic)
+        .position(nova_pos)
+        .mass(1.0)
+        .build();
+    let body_handle = nova.world.insert_body(body);
+
+    let collider = nova
+        .world
+        .create_collider(body_handle, CollisionShape::Sphere(SphereShape::new(0.4)))
+        .friction(0.4)
+        .restitution(0.5)
+        .build();
+    let collider_handle = nova.world.insert_collider(collider);
+
+    // Glowing orb that pulses
+    let linear = color.to_linear();
+    let entity = commands
+        .spawn((
+            Mesh3d(meshes.add(Sphere::new(0.4))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: color,
+                emissive: LinearRgba::new(linear.red * 2.0, linear.green * 2.0, linear.blue * 2.0, 1.0),
+                ..default()
+            })),
+            Transform::from_translation(position),
+            PhysicsBody { handle: body_handle },
+            PhysicsCollider { handle: collider_handle },
+            DynamicBody,
+            SpawnedObject,
+            Glowing {
+                color,
+                intensity: 3.0,
+            },
+        ))
+        .id();
+
+    handle_to_entity.bodies.insert(body_handle, entity);
+    handle_to_entity.colliders.insert(collider_handle, entity);
+
+    entity
+}
+
+/// Spawn a projectile with auto-despawn
+pub fn spawn_projectile(
+    nova: &mut NovaWorld,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    handle_to_entity: &mut HandleToEntity,
+    position: Vec3,
+    velocity: Vec3,
+    lifetime: f32,
+) -> Entity {
+    let nova_pos = to_nova_vec3(position);
+    let nova_vel = to_nova_vec3(velocity);
+
+    let body = nova
+        .world
+        .create_body()
+        .body_type(RigidBodyType::Dynamic)
+        .position(nova_pos)
+        .linear_velocity(nova_vel)
+        .mass(0.5)
+        .build();
+    let body_handle = nova.world.insert_body(body);
+
+    let collider = nova
+        .world
+        .create_collider(body_handle, CollisionShape::Sphere(SphereShape::new(0.2)))
+        .friction(0.3)
+        .restitution(0.6)
+        .build();
+    let collider_handle = nova.world.insert_collider(collider);
+
+    let entity = commands
+        .spawn((
+            Mesh3d(meshes.add(Sphere::new(0.2))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(1.0, 0.8, 0.2),
+                emissive: LinearRgba::new(2.0, 1.5, 0.3, 1.0),
+                ..default()
+            })),
+            Transform::from_translation(position),
+            PhysicsBody { handle: body_handle },
+            PhysicsCollider { handle: collider_handle },
+            DynamicBody,
+            SpawnedObject,
+            AutoDespawn { timer: lifetime },
+        ))
+        .id();
+
+    handle_to_entity.bodies.insert(body_handle, entity);
+    handle_to_entity.colliders.insert(collider_handle, entity);
+
+    entity
 }

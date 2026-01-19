@@ -23,8 +23,8 @@ impl Plugin for PhysicsPlugin {
 fn step_physics(mut nova: ResMut<NovaWorld>, time: Res<Time>) {
     if !nova.paused {
         let dt = time.delta_secs() * nova.time_scale;
-        // Cap dt to prevent explosion on large time steps
-        let capped_dt = dt.min(1.0 / 30.0);
+        // Cap dt to prevent tunneling - smaller = more stable
+        let capped_dt = dt.min(1.0 / 60.0);
         if capped_dt > 0.0 {
             nova.world.step(capped_dt);
         }

@@ -2,7 +2,7 @@
 
 use bevy::prelude::*;
 
-use crate::components::PhysicsBody;
+use crate::components::{Highlighted, PhysicsBody, Selected};
 use crate::convert::to_bevy_vec3;
 use crate::resources::{DebugVisuals, NovaWorld};
 
@@ -11,7 +11,7 @@ pub struct DebugPlugin;
 impl Plugin for DebugPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<DebugVisuals>()
-            .add_systems(Update, (toggle_debug_visuals, draw_debug_gizmos));
+            .add_systems(Update, (toggle_debug_visuals, draw_debug_gizmos, draw_selection_gizmos));
     }
 }
 
@@ -123,5 +123,69 @@ fn draw_debug_gizmos(
                 gizmos.arrow(point, point + normal * 0.2, Color::srgb(1.0, 0.0, 0.0));
             }
         }
+    }
+}
+
+/// Draw visual feedback for highlighted and selected objects
+fn draw_selection_gizmos(
+    mut gizmos: Gizmos,
+    highlighted_query: Query<&Transform, (With<Highlighted>, Without<Selected>)>,
+    selected_query: Query<&Transform, With<Selected>>,
+    both_query: Query<&Transform, (With<Highlighted>, With<Selected>)>,
+    time: Res<Time>,
+) {
+    let t = time.elapsed_secs();
+
+    // Draw highlight effect (white outline) for hovered objects
+    for transform in highlighted_query.iter() {
+        let pos = transform.translation;
+        let scale = transform.scale.max_element() * 0.6;
+
+        // Pulsing white circle
+        let pulse = (t * 4.0).sin() * 0.1 + 0.9;
+        gizmos.circle(
+            Isometry3d::new(pos + Vec3::Y * 0.01, Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)),
+            scale * pulse,
+            Color::srgba(1.0, 1.0, 1.0, 0.6),
+        );
+    }
+
+    // Draw selection effect (cyan outline) for selected objects
+    for transform in selected_query.iter() {
+        let pos = transform.translation;
+        let scale = transform.scale.max_element() * 0.65;
+
+        // Rotating cyan ring
+        let rotation = Quat::from_rotation_y(t * 2.0) * Quat::from_rotation_x(std::f32::consts::FRAC_PI_2);
+        gizmos.circle(
+            Isometry3d::new(pos, rotation),
+            scale,
+            Color::srgba(0.0, 1.0, 1.0, 0.8),
+        );
+
+        // Small dots at corners
+        let corner_dist = scale * 0.7;
+        for i in 0..4 {
+            let angle = (i as f32 * std::f32::consts::FRAC_PI_2) + t * 1.5;
+            let offset = Vec3::new(angle.cos() * corner_dist, 0.0, angle.sin() * corner_dist);
+            gizmos.sphere(
+                Isometry3d::from_translation(pos + offset),
+                0.05,
+                Color::srgb(0.0, 1.0, 1.0),
+            );
+        }
+    }
+
+    // Objects that are both highlighted and selected get a golden effect
+    for transform in both_query.iter() {
+        let pos = transform.translation;
+        let scale = transform.scale.max_element() * 0.7;
+
+        let pulse = (t * 5.0).sin() * 0.15 + 1.0;
+        gizmos.sphere(
+            Isometry3d::from_translation(pos),
+            scale * pulse,
+            Color::srgba(1.0, 0.8, 0.0, 0.3),
+        );
     }
 }

@@ -11,6 +11,7 @@ pub mod settings;
 pub mod spawning;
 pub mod time_control;
 pub mod tools;
+pub mod vehicle;
 
 pub use camera::CameraPlugin;
 pub use console::ConsolePlugin;
@@ -23,3 +24,4 @@ pub use settings::SettingsPlugin;
 pub use spawning::SpawningPlugin;
 pub use time_control::TimeControlPlugin;
 pub use tools::ToolsPlugin;
+pub use vehicle::VehiclePlugin;

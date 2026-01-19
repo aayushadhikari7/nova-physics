@@ -15,7 +15,7 @@ pub struct Ceiling;
 #[derive(Component)]
 pub struct LightFixture;
 
-/// Setup the arena environment - A BIG BEAUTIFUL ROOM!
+/// Setup the arena environment - A MASSIVE ROOM!
 pub fn setup_arena(
     mut commands: Commands,
     mut meshes: ResMut<Assets<Mesh>>,
@@ -23,12 +23,14 @@ pub fn setup_arena(
     mut nova: ResMut<NovaWorld>,
     mut handle_to_entity: ResMut<HandleToEntity>,
 ) {
-    // ============ ROOM DIMENSIONS ============
-    let room_width = 100.0; // X
-    let room_length = 100.0; // Z
-    let room_height = 30.0; // Y
-    let wall_thickness = 2.0;
-    let floor_thickness = 2.0;
+    // ============ ROOM DIMENSIONS - HUGE! ============
+    let room_width = 500.0; // X
+    let room_length = 500.0; // Z
+    let room_height = 50.0; // Y
+    let wall_thickness = 5.0;
+    let floor_thickness = 5.0;
+
+    // Note: Fog is added to camera in camera.rs
 
     // ============ FLOOR ============
     let ground_size = Vec3::new(room_width, floor_thickness, room_length);
@@ -191,12 +193,12 @@ pub fn setup_arena(
         handle_to_entity.bodies.insert(wall_handle, wall_entity);
     }
 
-    // ============ LIGHTING - MAKE IT BRIGHT! ============
+    // ============ LIGHTING - BRIGHT FOR BIG ROOM ============
 
     // Main directional light (sun-like)
     commands.spawn((
         DirectionalLight {
-            illuminance: 20000.0,
+            illuminance: 30000.0,
             shadows_enabled: true,
             color: Color::srgb(1.0, 0.98, 0.95),
             ..default()
@@ -207,37 +209,39 @@ pub fn setup_arena(
     // Bright ambient light for overall illumination
     commands.insert_resource(AmbientLight {
         color: Color::srgb(0.95, 0.97, 1.0),
-        brightness: 500.0,
+        brightness: 800.0,
     });
 
-    // Ceiling light fixtures - multiple point lights for even illumination
-    let light_spacing = 20.0;
-    let light_height = room_height - 2.0;
-    let light_intensity = 500000.0;
+    // Ceiling light fixtures - grid for big room
+    let light_height = room_height - 3.0;
+    let light_intensity = 2000000.0; // Brighter for bigger room
 
-    // Grid of ceiling lights
-    for x in [-30.0, -10.0, 10.0, 30.0] {
-        for z in [-30.0, -10.0, 10.0, 30.0] {
+    // Sparse grid of ceiling lights (every 80 units)
+    for x_idx in -3..=3 {
+        for z_idx in -3..=3 {
+            let x = x_idx as f32 * 80.0;
+            let z = z_idx as f32 * 80.0;
+
             // Point light
             commands.spawn((
                 PointLight {
                     color: Color::srgb(1.0, 0.98, 0.9),
                     intensity: light_intensity,
-                    radius: 0.5,
-                    range: 50.0,
-                    shadows_enabled: false, // Performance: only main light casts shadows
+                    radius: 1.0,
+                    range: 120.0,
+                    shadows_enabled: false,
                     ..default()
                 },
                 Transform::from_translation(Vec3::new(x, light_height, z)),
                 LightFixture,
             ));
 
-            // Light fixture visual (small glowing cube)
+            // Light fixture visual
             commands.spawn((
-                Mesh3d(meshes.add(Cuboid::new(1.5, 0.3, 1.5))),
+                Mesh3d(meshes.add(Cuboid::new(3.0, 0.5, 3.0))),
                 MeshMaterial3d(materials.add(StandardMaterial {
                     base_color: Color::srgb(1.0, 1.0, 0.95),
-                    emissive: LinearRgba::new(5.0, 5.0, 4.5, 1.0),
+                    emissive: LinearRgba::new(8.0, 8.0, 7.0, 1.0),
                     ..default()
                 })),
                 Transform::from_translation(Vec3::new(x, light_height + 0.5, z)),
@@ -246,63 +250,41 @@ pub fn setup_arena(
         }
     }
 
-    // Corner accent lights for extra brightness
-    let corner_positions = [
-        Vec3::new(-40.0, 15.0, -40.0),
-        Vec3::new(40.0, 15.0, -40.0),
-        Vec3::new(-40.0, 15.0, 40.0),
-        Vec3::new(40.0, 15.0, 40.0),
-    ];
-
-    for pos in corner_positions {
-        commands.spawn((
-            PointLight {
-                color: Color::srgb(0.9, 0.95, 1.0),
-                intensity: 300000.0,
-                range: 40.0,
-                shadows_enabled: false,
-                ..default()
-            },
-            Transform::from_translation(pos),
-            LightFixture,
-        ));
-    }
-
     // ============ FLOOR DECORATIONS ============
-    // Add some grid lines on the floor for visual reference
+    // Add grid lines on the floor for visual reference (every 50 units for big room)
     let line_material = materials.add(StandardMaterial {
         base_color: Color::srgb(0.25, 0.28, 0.32),
         perceptual_roughness: 0.8,
         ..default()
     });
 
-    // Grid lines every 10 units
-    for i in -4..=4 {
-        let offset = i as f32 * 10.0;
+    // Grid lines every 50 units
+    for i in -5..=5 {
+        let offset = i as f32 * 50.0;
 
         // X-direction lines
         commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(room_width - 10.0, 0.02, 0.2))),
+            Mesh3d(meshes.add(Cuboid::new(room_width - 20.0, 0.02, 0.3))),
             MeshMaterial3d(line_material.clone()),
             Transform::from_translation(Vec3::new(0.0, 0.01, offset)),
         ));
 
         // Z-direction lines
         commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(0.2, 0.02, room_length - 10.0))),
+            Mesh3d(meshes.add(Cuboid::new(0.3, 0.02, room_length - 20.0))),
             MeshMaterial3d(line_material.clone()),
             Transform::from_translation(Vec3::new(offset, 0.01, 0.0)),
         ));
     }
 
-    // Center marker
+    // Center marker (bigger)
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(2.0, 0.03, 2.0))),
+        Mesh3d(meshes.add(Cuboid::new(5.0, 0.05, 5.0))),
         MeshMaterial3d(materials.add(StandardMaterial {
             base_color: Color::srgb(0.6, 0.3, 0.3),
             perceptual_roughness: 0.5,
             ..default()
         })),
-        Transform::from_translation(Vec3::new(0.0, 0.015, 0.0)),
+        Transform::from_translation(Vec3::new(0.0, 0.025, 0.0)),
     ));
 }

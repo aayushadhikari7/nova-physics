@@ -13,8 +13,13 @@ pub struct NovaWorld {
 
 impl Default for NovaWorld {
     fn default() -> Self {
-        let mut world = PhysicsWorld::new();
-        world.set_gravity(nova::prelude::Vec3::new(0.0, -9.81, 0.0));
+        // Use more substeps for better collision detection (prevents tunneling/phasing)
+        let config = nova::prelude::PipelineConfig {
+            gravity: nova::prelude::Vec3::new(0.0, -20.0, 0.0), // Stronger gravity
+            substeps: 8, // More substeps = better collision detection
+            ..Default::default()
+        };
+        let world = PhysicsWorld::with_config(config);
         Self {
             world,
             time_scale: 1.0,
@@ -79,6 +84,13 @@ pub enum HotbarItem {
     Trampoline,
     Conveyor,
     Fan,
+
+    // === PHYSICS OBJECTS ===
+    SpawnBreakable,
+    SpawnExplosive,
+    SpawnSpinner,
+    SpawnMagnetObj,
+    SpawnGlowing,
 }
 
 impl HotbarItem {
@@ -128,6 +140,12 @@ impl HotbarItem {
             Self::Trampoline => "Trampoline",
             Self::Conveyor => "Conveyor",
             Self::Fan => "Fan",
+            // Physics objects
+            Self::SpawnBreakable => "Breakable",
+            Self::SpawnExplosive => "Explosive",
+            Self::SpawnSpinner => "Spinner",
+            Self::SpawnMagnetObj => "Magnet Obj",
+            Self::SpawnGlowing => "Glowing",
         }
     }
 
@@ -209,6 +227,11 @@ impl HotbarItem {
                 | Self::Trampoline
                 | Self::Conveyor
                 | Self::Fan
+                | Self::SpawnBreakable
+                | Self::SpawnExplosive
+                | Self::SpawnSpinner
+                | Self::SpawnMagnetObj
+                | Self::SpawnGlowing
         )
     }
 
@@ -259,6 +282,12 @@ impl HotbarItem {
             Self::Trampoline => "Tramp",
             Self::Conveyor => "Conv",
             Self::Fan => "Fan",
+            // Physics objects
+            Self::SpawnBreakable => "Break",
+            Self::SpawnExplosive => "Explo",
+            Self::SpawnSpinner => "Spin",
+            Self::SpawnMagnetObj => "MagO",
+            Self::SpawnGlowing => "Glow",
         }
     }
 }
@@ -315,11 +344,16 @@ impl Default for Hotbar {
                 HotbarItem::SpawnWindmill,
                 HotbarItem::GravityZone,
                 HotbarItem::ForceField,
-                // Page 5: Special
+                // Page 5: Special Zones
                 HotbarItem::Portal,
                 HotbarItem::Trampoline,
                 HotbarItem::Conveyor,
                 HotbarItem::Fan,
+                HotbarItem::SpawnBreakable,
+                HotbarItem::SpawnExplosive,
+                HotbarItem::SpawnSpinner,
+                HotbarItem::SpawnMagnetObj,
+                HotbarItem::SpawnGlowing,
             ],
             current_page: 0,
             items_per_page: 9,

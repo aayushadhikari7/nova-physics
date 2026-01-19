@@ -4,7 +4,7 @@ use bevy::prelude::*;
 use nova::prelude::*;
 use rand::Rng;
 
-use crate::components::{DynamicBody, FrozenBody, PhysicsBody, PhysicsMaterialType, Trail};
+use crate::components::{FrozenBody, Highlighted, PhysicsBody, PhysicsMaterialType, Selected};
 use crate::convert::{to_bevy_vec3, to_nova_vec3};
 use crate::plugins::camera::PlayerCamera;
 use crate::plugins::console::{log_delete, log_joint, log_tool, PhysicsConsole};
@@ -40,6 +40,9 @@ impl Plugin for ToolsPlugin {
                     painter_system,
                     resize_system,
                     tool_scroll_adjust,
+                    highlight_system,
+                    selection_system,
+                    draw_velocity_arrows,
                 ),
             );
     }
@@ -310,6 +313,8 @@ fn delete_system(
     mut stats: ResMut<PlaygroundStats>,
     mut console: ResMut<PhysicsConsole>,
     time: Res<Time>,
+    // Query ALL spawned objects (zones, effects, everything!)
+    spawned_objects: Query<(Entity, &Transform, Option<&PhysicsBody>), With<crate::components::SpawnedObject>>,
 ) {
     if hotbar.get_item(selected.index) != Some(&HotbarItem::Delete) {
         return;
@@ -326,53 +331,75 @@ fn delete_system(
         return;
     }
 
-    if let Some((body_handle, _, _, hit_point)) = raycast_nova(&nova, origin, direction, 100.0) {
-        if single {
-            // Only delete dynamic bodies, not static world geometry
+    let look_point = origin + direction * 15.0;
+
+    if single {
+        // Single delete: find closest spawned object to where we're looking
+        let mut closest: Option<(Entity, f32, Option<RigidBodyHandle>)> = None;
+
+        // First try raycast for physics objects
+        if let Some((body_handle, _, _, _)) = raycast_nova(&nova, origin, direction, 100.0) {
             if let Some(body) = nova.world.get_body(body_handle) {
-                if body.body_type == RigidBodyType::Dynamic {
+                if body.body_type != RigidBodyType::Static {
                     nova.world.remove_body(body_handle);
                     if let Some(&entity) = handle_to_entity.bodies.get(&body_handle) {
                         commands.entity(entity).despawn_recursive();
                     }
                     stats.total_deleted += 1;
                     log_delete(&mut console, 1, time.elapsed_secs());
+                    return;
                 }
             }
-        } else {
-            let delete_radius = 5.0;
-            let nova_center = to_nova_vec3(hit_point);
+        }
 
-            let to_delete: Vec<RigidBodyHandle> = nova
-                .world
-                .bodies()
-                .filter_map(|(handle, body)| {
-                    if body.body_type == RigidBodyType::Dynamic {
-                        let dist = (body.position - nova_center).length();
-                        if dist < delete_radius {
-                            Some(handle)
-                        } else {
-                            None
-                        }
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+        // If no physics body, find nearest spawned object (zones, etc)
+        for (entity, transform, physics_body) in spawned_objects.iter() {
+            let dist = transform.translation.distance(look_point);
+            if dist < 10.0 {
+                let body_handle = physics_body.map(|pb| pb.handle);
+                if closest.is_none() || dist < closest.unwrap().1 {
+                    closest = Some((entity, dist, body_handle));
+                }
+            }
+        }
 
-            let delete_count = to_delete.len() as u32;
-
-            for handle in to_delete {
+        if let Some((entity, _, body_handle)) = closest {
+            if let Some(handle) = body_handle {
                 nova.world.remove_body(handle);
-                if let Some(&entity) = handle_to_entity.bodies.get(&handle) {
-                    commands.entity(entity).despawn_recursive();
-                }
-                stats.total_deleted += 1;
             }
+            commands.entity(entity).despawn_recursive();
+            stats.total_deleted += 1;
+            log_delete(&mut console, 1, time.elapsed_secs());
+        }
+    } else {
+        // Area delete - delete ALL spawned objects in radius (physics + zones + effects)
+        let delete_radius = 10.0;
+        let mut delete_count = 0u32;
 
-            if delete_count > 0 {
-                log_delete(&mut console, delete_count, time.elapsed_secs());
+        // Collect entities to delete
+        let entities_to_delete: Vec<(Entity, Option<RigidBodyHandle>)> = spawned_objects
+            .iter()
+            .filter_map(|(entity, transform, physics_body)| {
+                let dist = transform.translation.distance(look_point);
+                if dist < delete_radius {
+                    Some((entity, physics_body.map(|pb| pb.handle)))
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for (entity, body_handle) in entities_to_delete {
+            if let Some(handle) = body_handle {
+                nova.world.remove_body(handle);
             }
+            commands.entity(entity).despawn_recursive();
+            delete_count += 1;
+            stats.total_deleted += 1;
+        }
+
+        if delete_count > 0 {
+            log_delete(&mut console, delete_count, time.elapsed_secs());
         }
     }
 }
@@ -981,6 +1008,147 @@ fn tool_scroll_adjust(
                 magnet.radius = (magnet.radius + delta * 1.0).clamp(2.0, 30.0);
             }
             _ => {}
+        }
+    }
+}
+
+// ============ HIGHLIGHT SYSTEM ============
+
+/// Track the currently highlighted entity (object under cursor)
+#[derive(Resource, Default)]
+pub struct HighlightState {
+    pub current: Option<Entity>,
+}
+
+/// Highlight objects under the cursor
+fn highlight_system(
+    mut commands: Commands,
+    camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
+    nova: Res<NovaWorld>,
+    handle_to_entity: Res<HandleToEntity>,
+    mut highlight_state: Local<Option<Entity>>,
+    highlighted: Query<Entity, With<Highlighted>>,
+) {
+    let Some((origin, direction)) = get_camera_ray(&camera_query) else {
+        return;
+    };
+
+    // Find what's under the cursor
+    let new_highlight = if let Some((body_handle, _, _, _)) = raycast_nova(&nova, origin, direction, 100.0) {
+        handle_to_entity.bodies.get(&body_handle).copied()
+    } else {
+        None
+    };
+
+    // Remove highlight from previous entity if changed
+    if *highlight_state != new_highlight {
+        // Remove old highlight
+        for entity in highlighted.iter() {
+            commands.entity(entity).remove::<Highlighted>();
+        }
+
+        // Add new highlight
+        if let Some(entity) = new_highlight {
+            commands.entity(entity).insert(Highlighted);
+        }
+
+        *highlight_state = new_highlight;
+    }
+}
+
+// ============ SELECTION SYSTEM ============
+
+/// Multi-select objects with Ctrl+Click
+fn selection_system(
+    mut commands: Commands,
+    mouse: Res<ButtonInput<MouseButton>>,
+    keyboard: Res<ButtonInput<KeyCode>>,
+    camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
+    nova: Res<NovaWorld>,
+    handle_to_entity: Res<HandleToEntity>,
+    selected_query: Query<Entity, With<Selected>>,
+) {
+    if !mouse.just_pressed(MouseButton::Middle) {
+        return;
+    }
+
+    let Some((origin, direction)) = get_camera_ray(&camera_query) else {
+        return;
+    };
+
+    let ctrl_held = keyboard.pressed(KeyCode::ControlLeft) || keyboard.pressed(KeyCode::ControlRight);
+
+    // Raycast to find clicked object
+    if let Some((body_handle, _, _, _)) = raycast_nova(&nova, origin, direction, 100.0) {
+        if let Some(&entity) = handle_to_entity.bodies.get(&body_handle) {
+            // Check if already selected
+            let already_selected = selected_query.contains(entity);
+
+            if already_selected {
+                // Deselect
+                commands.entity(entity).remove::<Selected>();
+            } else {
+                // If not holding Ctrl, clear other selections first
+                if !ctrl_held {
+                    for selected_entity in selected_query.iter() {
+                        commands.entity(selected_entity).remove::<Selected>();
+                    }
+                }
+                // Select this entity
+                commands.entity(entity).insert(Selected);
+            }
+        }
+    } else if !ctrl_held {
+        // Clicked on nothing without Ctrl - clear all selections
+        for entity in selected_query.iter() {
+            commands.entity(entity).remove::<Selected>();
+        }
+    }
+}
+
+// ============ VELOCITY ARROWS ============
+
+use crate::resources::DebugVisuals;
+
+/// Draw velocity arrows for all dynamic bodies when debug is enabled
+fn draw_velocity_arrows(
+    mut gizmos: Gizmos,
+    debug_visuals: Res<DebugVisuals>,
+    nova: Res<NovaWorld>,
+    bodies: Query<(&PhysicsBody, &Transform)>,
+) {
+    if !debug_visuals.show_velocities {
+        return;
+    }
+
+    for (physics_body, transform) in bodies.iter() {
+        if let Some(body) = nova.world.get_body(physics_body.handle) {
+            let pos = transform.translation;
+            let vel = to_bevy_vec3(body.linear_velocity);
+            let speed = vel.length();
+
+            if speed > 0.1 {
+                // Scale arrow based on velocity
+                let arrow_end = pos + vel.normalize() * (speed * 0.3).min(5.0);
+
+                // Color based on speed: green (slow) -> yellow -> red (fast)
+                let t = (speed / 20.0).min(1.0);
+                let color = if t < 0.5 {
+                    Color::srgb(t * 2.0, 1.0, 0.0)
+                } else {
+                    Color::srgb(1.0, 2.0 - t * 2.0, 0.0)
+                };
+
+                gizmos.arrow(pos, arrow_end, color);
+            }
+
+            // Draw angular velocity too (smaller, blue)
+            let ang_vel = to_bevy_vec3(body.angular_velocity);
+            let ang_speed = ang_vel.length();
+            if ang_speed > 0.1 {
+                let ang_arrow_end = pos + ang_vel.normalize() * (ang_speed * 0.2).min(2.0);
+                gizmos.arrow(pos, ang_arrow_end, Color::srgb(0.3, 0.5, 1.0));
+            }
         }
     }
 }

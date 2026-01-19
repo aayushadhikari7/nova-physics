@@ -2,10 +2,14 @@
 
 use bevy::prelude::*;
 use nova::prelude::RigidBodyType;
+use rand::Rng;
 
-use crate::components::{DynamicBody, PhysicsBody, SpawnedObject};
+use crate::components::{
+    AutoDespawn, Breakable, DynamicBody, Explosive, Glowing, MagnetObject, PhysicsBody,
+    PhysicsMaterialType, Spinner, SpawnedObject,
+};
 use crate::convert::{to_bevy_vec3, to_nova_vec3};
-use crate::resources::NovaWorld;
+use crate::resources::{HandleToEntity, NovaWorld, PlaygroundStats};
 
 pub struct EffectsPlugin;
 
@@ -16,10 +20,22 @@ impl Plugin for EffectsPlugin {
             .add_systems(
                 Update,
                 (
+                    // Physics zones
                     apply_gravity_zones,
                     apply_force_fields,
                     apply_conveyor_belts,
                     apply_portal_teleportation,
+                    apply_black_holes,
+                    apply_slow_motion_zones,
+                    apply_bounce_pads,
+                    // Object behaviors
+                    apply_spinner_rotation,
+                    apply_magnet_objects,
+                    check_breakable_objects,
+                    check_explosive_objects,
+                    update_auto_despawn,
+                    update_glowing_objects,
+                    // Visuals
                     update_zone_visuals,
                     spawn_explosion_effects,
                     update_trails,
@@ -241,6 +257,293 @@ fn apply_portal_teleportation(
                     }
                 }
             }
+        }
+    }
+}
+
+// ============ SPINNER ROTATION ============
+
+/// Rotate objects with Spinner component
+fn apply_spinner_rotation(
+    mut nova: ResMut<NovaWorld>,
+    spinners: Query<(&PhysicsBody, &Spinner)>,
+    time: Res<Time>,
+) {
+    let dt = time.delta_secs();
+
+    for (physics_body, spinner) in spinners.iter() {
+        if let Some(body) = nova.world.get_body_mut(physics_body.handle) {
+            // Apply angular velocity based on spinner settings
+            let angular_vel = to_nova_vec3(spinner.axis.normalize() * spinner.speed);
+            body.angular_velocity = angular_vel;
+            body.wake_up();
+        }
+    }
+}
+
+// ============ MAGNET OBJECTS ============
+
+/// Objects with MagnetObject component attract/repel nearby dynamic bodies
+fn apply_magnet_objects(
+    mut nova: ResMut<NovaWorld>,
+    magnets: Query<(&Transform, &MagnetObject)>,
+    bodies: Query<&PhysicsBody, With<DynamicBody>>,
+) {
+    for (magnet_transform, magnet) in magnets.iter() {
+        let magnet_pos = magnet_transform.translation;
+
+        for body in bodies.iter() {
+            if let Some(nova_body) = nova.world.get_body(body.handle) {
+                let body_pos = to_bevy_vec3(nova_body.position);
+                let distance = body_pos.distance(magnet_pos);
+
+                if distance < magnet.radius && distance > 0.1 {
+                    let direction = if magnet.attract {
+                        (magnet_pos - body_pos).normalize()
+                    } else {
+                        (body_pos - magnet_pos).normalize()
+                    };
+
+                    let falloff = 1.0 - (distance / magnet.radius);
+                    let force = direction * magnet.strength * falloff;
+
+                    if let Some(body_mut) = nova.world.get_body_mut(body.handle) {
+                        body_mut.apply_force(to_nova_vec3(force));
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ============ BREAKABLE OBJECTS ============
+
+/// Check for high-impulse collisions and break objects
+fn check_breakable_objects(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut nova: ResMut<NovaWorld>,
+    mut handle_to_entity: ResMut<HandleToEntity>,
+    breakables: Query<(Entity, &PhysicsBody, &Breakable, &Transform)>,
+    mut stats: ResMut<PlaygroundStats>,
+) {
+    let mut to_break = Vec::new();
+
+    // Check velocities for high-impact collisions
+    for (entity, physics_body, breakable, transform) in breakables.iter() {
+        if let Some(body) = nova.world.get_body(physics_body.handle) {
+            let speed = to_bevy_vec3(body.linear_velocity).length();
+            // Break if moving fast (simulating impact)
+            if speed > breakable.impulse_threshold {
+                to_break.push((entity, physics_body.handle, transform.translation, breakable.pieces));
+            }
+        }
+    }
+
+    // Break objects and spawn pieces
+    for (entity, body_handle, position, pieces) in to_break {
+        // Remove original
+        commands.entity(entity).despawn_recursive();
+        nova.world.remove_body(body_handle);
+        handle_to_entity.bodies.remove(&body_handle);
+
+        // Spawn smaller pieces
+        let mut rng = rand::thread_rng();
+        for _ in 0..pieces {
+            let offset = Vec3::new(
+                rng.gen_range(-0.5..0.5),
+                rng.gen_range(-0.5..0.5),
+                rng.gen_range(-0.5..0.5),
+            );
+            let piece_pos = position + offset;
+            let piece_size = 0.2;
+
+            // Create small debris sphere
+            let body = nova
+                .world
+                .create_body()
+                .body_type(RigidBodyType::Dynamic)
+                .position(to_nova_vec3(piece_pos))
+                .linear_velocity(to_nova_vec3(offset.normalize() * 5.0))
+                .build();
+            let body_handle = nova.world.insert_body(body);
+
+            let collider = nova
+                .world
+                .create_collider(
+                    body_handle,
+                    nova::prelude::CollisionShape::Sphere(nova::prelude::SphereShape::new(piece_size)),
+                )
+                .friction(0.5)
+                .restitution(0.3)
+                .build();
+            let collider_handle = nova.world.insert_collider(collider);
+
+            let piece_entity = commands
+                .spawn((
+                    Mesh3d(meshes.add(Sphere::new(piece_size))),
+                    MeshMaterial3d(materials.add(StandardMaterial {
+                        base_color: Color::srgb(0.5, 0.4, 0.3),
+                        ..default()
+                    })),
+                    Transform::from_translation(piece_pos),
+                    PhysicsBody { handle: body_handle },
+                    crate::components::PhysicsCollider { handle: collider_handle },
+                    DynamicBody,
+                    SpawnedObject,
+                    AutoDespawn { timer: 5.0 }, // Debris disappears after 5 seconds
+                ))
+                .id();
+
+            handle_to_entity.bodies.insert(body_handle, piece_entity);
+            stats.total_spawned += 1;
+        }
+
+        stats.total_deleted += 1;
+    }
+}
+
+// ============ EXPLOSIVE OBJECTS ============
+
+/// Check for collisions and trigger explosions
+fn check_explosive_objects(
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
+    mut nova: ResMut<NovaWorld>,
+    mut handle_to_entity: ResMut<HandleToEntity>,
+    mut explosives: Query<(Entity, &PhysicsBody, &mut Explosive, &Transform)>,
+    bodies: Query<&PhysicsBody, With<DynamicBody>>,
+    mut stats: ResMut<PlaygroundStats>,
+) {
+    let mut to_explode = Vec::new();
+
+    // Check for contact (simplified: check if moving and near another body)
+    for (entity, physics_body, mut explosive, transform) in explosives.iter_mut() {
+        if explosive.triggered {
+            continue;
+        }
+
+        if let Some(body) = nova.world.get_body(physics_body.handle) {
+            let speed = to_bevy_vec3(body.linear_velocity).length();
+            let pos = to_bevy_vec3(body.position);
+
+            // Trigger if moving fast enough (impact detection)
+            if speed > 3.0 {
+                // Check proximity to other bodies
+                for other_body in bodies.iter() {
+                    if other_body.handle == physics_body.handle {
+                        continue;
+                    }
+                    if let Some(other) = nova.world.get_body(other_body.handle) {
+                        let other_pos = to_bevy_vec3(other.position);
+                        if pos.distance(other_pos) < 1.5 {
+                            to_explode.push((entity, physics_body.handle, transform.translation, explosive.radius, explosive.force));
+                            break;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Trigger explosions
+    for (entity, body_handle, position, radius, force) in to_explode {
+        // Remove explosive
+        commands.entity(entity).despawn_recursive();
+        nova.world.remove_body(body_handle);
+        handle_to_entity.bodies.remove(&body_handle);
+
+        // Apply explosion force to nearby bodies
+        let nova_center = to_nova_vec3(position);
+        let affected: Vec<_> = nova
+            .world
+            .bodies()
+            .filter_map(|(h, b)| {
+                if b.body_type == RigidBodyType::Dynamic {
+                    let dist = (b.position - nova_center).length();
+                    if dist < radius {
+                        Some((h, dist))
+                    } else {
+                        None
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        for (handle, dist) in affected {
+            if let Some(body) = nova.world.get_body_mut(handle) {
+                let diff = body.position - nova_center;
+                if diff.length() > 0.01 {
+                    let falloff = 1.0 - (dist / radius);
+                    let impulse = diff.normalize() * force * falloff;
+                    body.apply_impulse(impulse);
+                    body.wake_up();
+                }
+            }
+        }
+
+        // Spawn explosion visual
+        spawn_explosion_visual(&mut commands, &mut meshes, &mut materials, position, radius);
+        stats.total_explosions += 1;
+        stats.total_deleted += 1;
+    }
+}
+
+// ============ AUTO DESPAWN ============
+
+/// Remove objects after their timer expires
+fn update_auto_despawn(
+    mut commands: Commands,
+    mut nova: ResMut<NovaWorld>,
+    mut handle_to_entity: ResMut<HandleToEntity>,
+    mut query: Query<(Entity, &mut AutoDespawn, Option<&PhysicsBody>)>,
+    time: Res<Time>,
+    mut stats: ResMut<PlaygroundStats>,
+) {
+    let dt = time.delta_secs();
+
+    for (entity, mut despawn, physics_body) in query.iter_mut() {
+        despawn.timer -= dt;
+
+        if despawn.timer <= 0.0 {
+            // Remove physics body if present
+            if let Some(pb) = physics_body {
+                nova.world.remove_body(pb.handle);
+                handle_to_entity.bodies.remove(&pb.handle);
+            }
+            commands.entity(entity).despawn_recursive();
+            stats.total_deleted += 1;
+        }
+    }
+}
+
+// ============ GLOWING OBJECTS ============
+
+/// Update emissive materials for glowing objects
+fn update_glowing_objects(
+    glowing_query: Query<(&Glowing, &MeshMaterial3d<StandardMaterial>)>,
+    mut material_assets: ResMut<Assets<StandardMaterial>>,
+    time: Res<Time>,
+) {
+    let t = time.elapsed_secs();
+
+    for (glowing, material_handle) in glowing_query.iter() {
+        if let Some(material) = material_assets.get_mut(&material_handle.0) {
+            // Pulsing glow effect
+            let pulse = (t * 3.0).sin() * 0.5 + 0.5;
+            let intensity = glowing.intensity * (0.5 + pulse * 0.5);
+
+            let color = glowing.color.to_linear();
+            material.emissive = LinearRgba::new(
+                color.red * intensity,
+                color.green * intensity,
+                color.blue * intensity,
+                1.0,
+            );
         }
     }
 }
@@ -491,6 +794,197 @@ pub fn spawn_force_field(
                 radius,
             },
             ZoneVisual,
+            SpawnedObject,
+        ))
+        .id()
+}
+
+// ============ BLACK HOLE ============
+
+/// Black hole component - super strong attractor that pulls everything in
+#[derive(Component)]
+pub struct BlackHole {
+    pub strength: f32,
+    pub radius: f32,
+    pub event_horizon: f32,
+}
+
+/// Apply black hole attraction
+fn apply_black_holes(
+    mut nova: ResMut<NovaWorld>,
+    black_holes: Query<(&Transform, &BlackHole)>,
+    mut commands: Commands,
+    handle_to_entity: Res<HandleToEntity>,
+) {
+    for (hole_transform, hole) in black_holes.iter() {
+        let hole_pos = hole_transform.translation;
+
+        let mut to_delete = Vec::new();
+
+        for (handle, body) in nova.world.bodies_mut() {
+            if body.body_type.is_static() {
+                continue;
+            }
+
+            let body_pos = to_bevy_vec3(body.position);
+            let diff = hole_pos - body_pos;
+            let dist = diff.length();
+
+            if dist < hole.event_horizon {
+                to_delete.push(handle);
+            } else if dist < hole.radius {
+                let strength = hole.strength / (dist * dist).max(1.0);
+                let force = to_nova_vec3(diff.normalize() * strength);
+                body.apply_force(force);
+            }
+        }
+
+        for handle in to_delete {
+            if let Some(&entity) = handle_to_entity.bodies.get(&handle) {
+                commands.entity(entity).despawn_recursive();
+            }
+            nova.world.remove_body(handle);
+        }
+    }
+}
+
+/// Spawn a black hole
+pub fn spawn_black_hole(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    position: Vec3,
+    radius: f32,
+    strength: f32,
+) -> Entity {
+    commands
+        .spawn((
+            Mesh3d(meshes.add(Sphere::new(radius * 0.15))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(0.0, 0.0, 0.0),
+                emissive: LinearRgba::new(0.5, 0.0, 1.0, 1.0),
+                ..default()
+            })),
+            Transform::from_translation(position),
+            BlackHole {
+                strength,
+                radius,
+                event_horizon: radius * 0.2,
+            },
+            SpawnedObject,
+        ))
+        .id()
+}
+
+// ============ SLOW MOTION ZONE ============
+
+#[derive(Component)]
+pub struct SlowMotionZone {
+    pub radius: f32,
+    pub factor: f32,
+}
+
+fn apply_slow_motion_zones(
+    mut nova: ResMut<NovaWorld>,
+    zones: Query<(&Transform, &SlowMotionZone)>,
+) {
+    for (zone_transform, zone) in zones.iter() {
+        let zone_pos = zone_transform.translation;
+
+        for (_, body) in nova.world.bodies_mut() {
+            if body.body_type.is_static() {
+                continue;
+            }
+
+            let body_pos = to_bevy_vec3(body.position);
+            let dist = zone_pos.distance(body_pos);
+
+            if dist < zone.radius {
+                body.linear_velocity = body.linear_velocity * zone.factor;
+                body.angular_velocity = body.angular_velocity * zone.factor;
+            }
+        }
+    }
+}
+
+pub fn spawn_slow_motion_zone(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    position: Vec3,
+    radius: f32,
+    factor: f32,
+) -> Entity {
+    commands
+        .spawn((
+            Mesh3d(meshes.add(Sphere::new(radius))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgba(0.1, 0.5, 0.8, 0.2),
+                alpha_mode: AlphaMode::Blend,
+                cull_mode: None,
+                ..default()
+            })),
+            Transform::from_translation(position),
+            SlowMotionZone { radius, factor },
+            ZoneVisual,
+            SpawnedObject,
+        ))
+        .id()
+}
+
+// ============ BOUNCE PAD ============
+
+#[derive(Component)]
+pub struct BouncePad {
+    pub strength: f32,
+    pub size: Vec3,
+}
+
+fn apply_bounce_pads(
+    mut nova: ResMut<NovaWorld>,
+    pads: Query<(&Transform, &BouncePad)>,
+) {
+    for (pad_transform, pad) in pads.iter() {
+        let pad_pos = pad_transform.translation;
+        let half_size = pad.size * 0.5;
+
+        for (_, body) in nova.world.bodies_mut() {
+            if body.body_type.is_static() {
+                continue;
+            }
+
+            let body_pos = to_bevy_vec3(body.position);
+
+            let on_pad = (body_pos.x - pad_pos.x).abs() < half_size.x
+                && (body_pos.z - pad_pos.z).abs() < half_size.z
+                && body_pos.y > pad_pos.y
+                && body_pos.y < pad_pos.y + half_size.y + 1.0;
+
+            if on_pad && body.linear_velocity.y < 1.0 {
+                body.linear_velocity.y = pad.strength;
+            }
+        }
+    }
+}
+
+pub fn spawn_bounce_pad(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    position: Vec3,
+    size: Vec3,
+    strength: f32,
+) -> Entity {
+    commands
+        .spawn((
+            Mesh3d(meshes.add(Cuboid::new(size.x, size.y, size.z))),
+            MeshMaterial3d(materials.add(StandardMaterial {
+                base_color: Color::srgb(1.0, 0.3, 0.7),
+                emissive: LinearRgba::new(1.0, 0.2, 0.5, 1.0),
+                ..default()
+            })),
+            Transform::from_translation(position),
+            BouncePad { strength, size },
             SpawnedObject,
         ))
         .id()

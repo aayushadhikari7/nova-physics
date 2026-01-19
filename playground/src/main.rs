@@ -15,7 +15,7 @@ use bevy::window::{PresentMode, WindowMode};
 
 use plugins::{
     CameraPlugin, ConsolePlugin, DebugPlugin, EffectsPlugin, InputPlugin, InventoryPlugin,
-    PhysicsPlugin, SettingsPlugin, SpawningPlugin, TimeControlPlugin, ToolsPlugin,
+    PhysicsPlugin, SettingsPlugin, SpawningPlugin, TimeControlPlugin, ToolsPlugin, VehiclePlugin,
 };
 
 fn main() {
@@ -43,6 +43,7 @@ fn main() {
             SettingsPlugin,
             EffectsPlugin,
             ConsolePlugin,
+            VehiclePlugin,
         ))
         // Setup systems
         .add_systems(Startup, arena::setup_arena)
@@ -188,9 +189,9 @@ fn preset_spawning(
         );
     }
 
-    // N - Car
+    // N - Controllable Car (press F to enter/exit)
     if keyboard.just_pressed(KeyCode::KeyN) {
-        presets::spawn_car(
+        plugins::vehicle::spawn_controllable_car(
             &mut nova,
             &mut commands,
             &mut meshes,
@@ -248,6 +249,414 @@ fn preset_spawning(
             &mut handle_to_entity,
             spawn_pos + Vec3::new(0.0, 10.0, 0.0),
             30,
+        );
+    }
+
+    // Backquote (`) - Bowling Alley
+    if keyboard.just_pressed(KeyCode::Backquote) {
+        presets::spawn_bowling(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+            Vec3::new(cam_forward.x, 0.0, cam_forward.z).normalize(),
+        );
+    }
+
+    // Digit0 - Seesaw
+    if keyboard.just_pressed(KeyCode::Digit0) {
+        presets::spawn_seesaw(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+        );
+    }
+
+    // Minus - Swing Set
+    if keyboard.just_pressed(KeyCode::Minus) {
+        presets::spawn_swing(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+        );
+    }
+
+    // Equal - Brick Wall
+    if keyboard.just_pressed(KeyCode::Equal) {
+        presets::spawn_wall(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+            8,  // width
+            6,  // height
+        );
+    }
+
+    // Backslash - Ball Avalanche
+    if keyboard.just_pressed(KeyCode::Backslash) {
+        presets::spawn_avalanche(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos + Vec3::new(0.0, 8.0, 0.0),
+            40,
+        );
+    }
+
+    // Q - Jenga Tower
+    if keyboard.just_pressed(KeyCode::KeyQ) {
+        presets::spawn_jenga(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+            15, // layers
+        );
+    }
+
+    // X - Pool/Billiards
+    if keyboard.just_pressed(KeyCode::KeyX) {
+        presets::spawn_pool_table(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+        );
+    }
+
+    // Z - Trebuchet
+    if keyboard.just_pressed(KeyCode::KeyZ) {
+        presets::spawn_trebuchet(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+        );
+    }
+
+    // C - Ramp
+    if keyboard.just_pressed(KeyCode::KeyC) {
+        presets::spawn_ramp(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+            Vec3::new(cam_forward.x, 0.0, cam_forward.z).normalize(),
+            6.0,  // length
+            25.0, // angle in degrees
+        );
+    }
+
+    // Quote - Spinning Platform
+    if keyboard.just_pressed(KeyCode::Quote) {
+        presets::spawn_spinner_platform(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos + Vec3::new(0.0, 0.5, 0.0),
+            4, // arm count
+        );
+    }
+
+    // BracketRight - Ball Pit
+    if keyboard.just_pressed(KeyCode::BracketRight) {
+        presets::spawn_ball_pit(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+            50, // ball count
+        );
+    }
+
+    // ============ BONKERS MODE KEYS ============
+
+    // Numpad1 - DOMINO SPIRAL (100 dominos!)
+    if keyboard.just_pressed(KeyCode::Numpad1) {
+        presets::spawn_domino_spiral(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+            100,
+        );
+    }
+
+    // Numpad2 - GIANT PENDULUM OF DOOM
+    if keyboard.just_pressed(KeyCode::Numpad2) {
+        presets::spawn_giant_pendulum(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+        );
+    }
+
+    // Numpad3 - WRECKING BALL VS TOWER!
+    if keyboard.just_pressed(KeyCode::Numpad3) {
+        presets::spawn_wrecking_ball_vs_tower(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+        );
+    }
+
+    // Numpad4 - VOLCANO ERUPTION!
+    if keyboard.just_pressed(KeyCode::Numpad4) {
+        presets::spawn_volcano(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+            40,
+        );
+    }
+
+    // Numpad5 - STAIRCASE OF DOOM
+    if keyboard.just_pressed(KeyCode::Numpad5) {
+        presets::spawn_staircase_of_doom(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos + Vec3::new(0.0, 5.0, 0.0),
+            15,
+        );
+    }
+
+    // Numpad6 - PACHINKO BOARD
+    if keyboard.just_pressed(KeyCode::Numpad6) {
+        presets::spawn_pachinko(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+        );
+    }
+
+    // Numpad7 - BALL TSUNAMI!!!
+    if keyboard.just_pressed(KeyCode::Numpad7) {
+        presets::spawn_ball_tsunami(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos - Vec3::new(8.0, 0.0, 0.0),
+            100,
+        );
+    }
+
+    // Numpad8 - CHAIN REACTION
+    if keyboard.just_pressed(KeyCode::Numpad8) {
+        presets::spawn_chain_reaction(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+        );
+    }
+
+    // Numpad9 - GYROSCOPE
+    if keyboard.just_pressed(KeyCode::Numpad9) {
+        presets::spawn_gyroscope(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos + Vec3::new(0.0, 3.0, 0.0),
+        );
+    }
+
+    // Numpad0 - HAMSTER WHEEL
+    if keyboard.just_pressed(KeyCode::Numpad0) {
+        presets::spawn_hamster_wheel(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos + Vec3::new(0.0, 4.0, 0.0),
+        );
+    }
+
+    // NumpadAdd - CHAOS CUBE EXPLOSION!
+    if keyboard.just_pressed(KeyCode::NumpadAdd) {
+        presets::spawn_chaos_cube(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+            5, // 5x5x5 = 125 balls!
+        );
+    }
+
+    // NumpadSubtract - DOUBLE PENDULUM (chaotic!)
+    if keyboard.just_pressed(KeyCode::NumpadSubtract) {
+        presets::spawn_double_pendulum(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos + Vec3::new(0.0, 5.0, 0.0),
+        );
+    }
+
+    // NumpadMultiply - METEOR SHOWER!!!
+    if keyboard.just_pressed(KeyCode::NumpadMultiply) {
+        presets::spawn_meteor_shower(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+            30,
+        );
+    }
+
+    // NumpadDivide - BALL FOUNTAIN!
+    if keyboard.just_pressed(KeyCode::NumpadDivide) {
+        presets::spawn_ball_fountain(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+            50,
+        );
+    }
+
+    // NumpadDecimal - FIREWORKS!!!
+    if keyboard.just_pressed(KeyCode::NumpadDecimal) {
+        presets::spawn_fireworks(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+            5, // 5 bursts!
+        );
+    }
+
+    // NumpadEnter - BOUNCY CASTLE!
+    if keyboard.just_pressed(KeyCode::NumpadEnter) {
+        presets::spawn_bouncy_castle(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+        );
+    }
+
+    // Insert - MARBLE RUN!
+    if keyboard.just_pressed(KeyCode::Insert) {
+        presets::spawn_marble_run(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos + Vec3::new(0.0, 8.0, 0.0),
+        );
+    }
+
+    // Delete - BALL CANNON (fires forward!)
+    if keyboard.just_pressed(KeyCode::Delete) {
+        presets::spawn_ball_cannon(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+            Vec3::new(cam_forward.x, 0.0, cam_forward.z).normalize(),
+            20,
+        );
+    }
+
+    // Home - ULTIMATE DESTRUCTION!!!
+    if keyboard.just_pressed(KeyCode::Home) {
+        presets::spawn_ultimate_destruction(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+        );
+    }
+
+    // End - PENDULUM WAVE (mesmerizing!)
+    if keyboard.just_pressed(KeyCode::End) {
+        presets::spawn_pendulum_wave(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos + Vec3::new(0.0, 5.0, 0.0),
+            20,
+        );
+    }
+
+    // PageUp - BALL TORNADO!
+    if keyboard.just_pressed(KeyCode::PageUp) {
+        presets::spawn_ball_tornado(
+            &mut nova,
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            &mut handle_to_entity,
+            spawn_pos,
+            80,
         );
     }
 }
@@ -481,6 +890,42 @@ fn zone_spawning(
             6.0, // radius
             plugins::effects::ForceFieldMode::Directional(Vec3::new(0.0, 1.0, 0.0)),
             500.0, // strength
+        );
+    }
+
+    // F11 - BLACK HOLE! (dangerous - deletes objects that get too close!)
+    if keyboard.just_pressed(KeyCode::F11) {
+        plugins::effects::spawn_black_hole(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            spawn_pos,
+            15.0,    // radius of attraction
+            5000.0,  // strength - VERY STRONG
+        );
+    }
+
+    // F12 - Slow Motion Zone
+    if keyboard.just_pressed(KeyCode::F12) {
+        plugins::effects::spawn_slow_motion_zone(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            spawn_pos,
+            8.0,  // radius
+            0.85, // factor (15% speed reduction per frame)
+        );
+    }
+
+    // Semicolon - Bounce Pad
+    if keyboard.just_pressed(KeyCode::Semicolon) {
+        plugins::effects::spawn_bounce_pad(
+            &mut commands,
+            &mut meshes,
+            &mut materials,
+            spawn_pos - Vec3::Y * 2.0, // Spawn on ground level
+            Vec3::new(4.0, 0.3, 4.0),  // size
+            25.0, // launch strength
         );
     }
 }

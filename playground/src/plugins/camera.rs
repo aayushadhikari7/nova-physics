@@ -38,6 +38,16 @@ fn setup_camera(mut commands: Commands, mut windows: Query<&mut Window, With<Pri
         Camera3d::default(),
         Transform::from_xyz(0.0, 8.0, 35.0).looking_at(Vec3::ZERO, Vec3::Y),
         PlayerCamera::default(),
+        // Fog for distance culling
+        bevy::pbr::DistanceFog {
+            color: Color::srgba(0.15, 0.17, 0.2, 1.0),
+            directional_light_color: Color::srgba(1.0, 0.95, 0.85, 0.5),
+            directional_light_exponent: 30.0,
+            falloff: bevy::pbr::FogFalloff::Linear {
+                start: 80.0,
+                end: 350.0,
+            },
+        },
     ));
 
     // Lock and hide cursor for FPS controls
@@ -51,10 +61,18 @@ fn camera_look(
     mut camera: Query<(&mut Transform, &mut PlayerCamera)>,
     mouse_motion: Res<AccumulatedMouseMotion>,
     settings: Res<CameraSettings>,
+    windows: Query<&Window, With<PrimaryWindow>>,
 ) {
     let Ok((mut transform, mut player_camera)) = camera.get_single_mut() else {
         return;
     };
+
+    // Don't move camera if cursor is unlocked (visible)
+    if let Ok(window) = windows.get_single() {
+        if window.cursor_options.visible {
+            return; // Cursor is free, don't move camera!
+        }
+    }
 
     let delta = mouse_motion.delta;
 
@@ -73,6 +91,12 @@ fn camera_look(
         );
     }
 }
+
+// Room bounds for camera collision (must match arena.rs)
+pub const ROOM_HALF_WIDTH: f32 = 250.0;  // Half of 500
+pub const ROOM_HALF_LENGTH: f32 = 250.0; // Half of 500
+pub const ROOM_HEIGHT: f32 = 50.0;
+pub const PLAYER_MARGIN: f32 = 2.0; // Keep player this far from walls
 
 fn camera_move(
     mut camera: Query<&mut Transform, With<PlayerCamera>>,
@@ -106,7 +130,11 @@ fn camera_move(
         velocity -= right_flat;
     }
 
-    // Vertical movement
+    // Check sprint first (affects all movement including vertical)
+    let sprint = keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight);
+    let speed_mult = if sprint { settings.sprint_multiplier } else { 1.0 };
+
+    // Vertical movement (also affected by sprint!)
     if keyboard.pressed(KeyCode::Space) {
         velocity.y += 1.0;
     }
@@ -119,12 +147,19 @@ fn camera_move(
         velocity = velocity.normalize();
     }
 
-    let mut speed = settings.speed;
-    if keyboard.pressed(KeyCode::ShiftLeft) || keyboard.pressed(KeyCode::ShiftRight) {
-        speed *= settings.sprint_multiplier;
-    }
+    let speed = settings.speed * speed_mult;
 
     transform.translation += velocity * speed * time.delta_secs();
+
+    // CLAMP position to stay inside room bounds (solid walls!)
+    let bounds_x = ROOM_HALF_WIDTH - PLAYER_MARGIN;
+    let bounds_z = ROOM_HALF_LENGTH - PLAYER_MARGIN;
+    let min_y = 1.0; // Don't go below floor
+    let max_y = ROOM_HEIGHT - PLAYER_MARGIN;
+
+    transform.translation.x = transform.translation.x.clamp(-bounds_x, bounds_x);
+    transform.translation.z = transform.translation.z.clamp(-bounds_z, bounds_z);
+    transform.translation.y = transform.translation.y.clamp(min_y, max_y);
 }
 
 fn toggle_cursor_grab(
