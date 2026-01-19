@@ -8,7 +8,7 @@ use crate::components::{DynamicBody, FrozenBody, PhysicsBody, PhysicsMaterialTyp
 use crate::convert::{to_bevy_vec3, to_nova_vec3};
 use crate::plugins::camera::PlayerCamera;
 use crate::plugins::console::{log_delete, log_joint, log_tool, PhysicsConsole};
-use crate::plugins::spawning::{spawn_box, spawn_sphere};
+use crate::plugins::spawning::{spawn_box, spawn_capsule, spawn_sphere};
 use crate::resources::{
     CannonState, GrabState, HandleToEntity, Hotbar, HotbarItem, JointToolState, JointType,
     MagnetState, NovaWorld, PainterState, PlaygroundStats, ProjectileType, SelectedSlot,
@@ -38,6 +38,7 @@ impl Plugin for ToolsPlugin {
                     magnet_system,
                     launch_cannon_system,
                     painter_system,
+                    resize_system,
                     tool_scroll_adjust,
                 ),
             );
@@ -199,6 +200,9 @@ fn force_gun_system(
 fn explosion_system(
     mouse: Res<ButtonInput<MouseButton>>,
     mut nova: ResMut<NovaWorld>,
+    mut commands: Commands,
+    mut meshes: ResMut<Assets<Mesh>>,
+    mut materials: ResMut<Assets<StandardMaterial>>,
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
     selected: Res<SelectedSlot>,
     hotbar: Res<Hotbar>,
@@ -275,6 +279,15 @@ fn explosion_system(
             }
         }
     }
+
+    // Spawn visual explosion effect
+    crate::plugins::effects::spawn_explosion_visual(
+        &mut commands,
+        &mut meshes,
+        &mut materials,
+        explosion_center,
+        radius,
+    );
 
     let size = if large { "LARGE" } else { "small" };
     log_tool(
@@ -418,10 +431,11 @@ fn joint_tool_system(
                                     .create_fixed_joint(first_handle, body_handle, anchor_a, anchor_b);
                             }
                             JointType::Distance | JointType::Rope => {
+                                let first_pos = nova.world.get_body(first_handle)
+                                    .map(|b| to_bevy_vec3(b.position))
+                                    .unwrap_or(Vec3::ZERO);
                                 let dist = (to_bevy_vec3(body.position) + local_anchor
-                                    - (to_bevy_vec3(
-                                        nova.world.get_body(first_handle).unwrap().position,
-                                    ) + first_anchor))
+                                    - (first_pos + first_anchor))
                                     .length();
                                 nova.world.create_distance_joint(
                                     first_handle,
@@ -439,10 +453,11 @@ fn joint_tool_system(
                                 nova.world.insert_joint(joint);
                             }
                             JointType::Spring => {
+                                let first_pos = nova.world.get_body(first_handle)
+                                    .map(|b| to_bevy_vec3(b.position))
+                                    .unwrap_or(Vec3::ZERO);
                                 let dist = (to_bevy_vec3(body.position) + local_anchor
-                                    - (to_bevy_vec3(
-                                        nova.world.get_body(first_handle).unwrap().position,
-                                    ) + first_anchor))
+                                    - (first_pos + first_anchor))
                                     .length();
                                 let spring_joint =
                                     DistanceJoint::new(dist).as_spring(100.0, 5.0);
@@ -472,8 +487,7 @@ fn freeze_system(
     selected: Res<SelectedSlot>,
     hotbar: Res<Hotbar>,
     handle_to_entity: Res<HandleToEntity>,
-    frozen_query: Query<Entity, With<FrozenBody>>,
-    keyboard: Res<ButtonInput<KeyCode>>,
+    frozen_query: Query<(Entity, &FrozenBody, &PhysicsBody)>,
 ) {
     if hotbar.get_item(selected.index) != Some(&HotbarItem::Freeze) {
         return;
@@ -483,35 +497,48 @@ fn freeze_system(
         return;
     };
 
-    // Right click unfreezes all
+    // Right click unfreezes all frozen bodies
     if mouse.just_pressed(MouseButton::Right) {
-        for entity in frozen_query.iter() {
-            commands.entity(entity).remove::<FrozenBody>();
-        }
-        // Unfreeze all bodies in Nova
-        let handles: Vec<_> = nova.world.bodies().map(|(h, _)| h).collect();
-        for handle in handles {
-            if let Some(body) = nova.world.get_body_mut(handle) {
-                if body.body_type == RigidBodyType::Static {
-                    // Only unfreeze if it was dynamic before (check user_data or something)
-                    // For simplicity, we'll skip this
-                }
+        for (entity, frozen, physics_body) in frozen_query.iter() {
+            // Restore original velocity
+            if let Some(body) = nova.world.get_body_mut(physics_body.handle) {
+                body.linear_velocity = to_nova_vec3(frozen.original_linear_velocity);
+                body.angular_velocity = to_nova_vec3(frozen.original_angular_velocity);
+                body.wake_up();
             }
+            commands.entity(entity).remove::<FrozenBody>();
         }
         return;
     }
 
     if mouse.just_pressed(MouseButton::Left) {
         if let Some((body_handle, _, _, _)) = raycast_nova(&nova, origin, direction, 100.0) {
-            if let Some(body) = nova.world.get_body_mut(body_handle) {
+            // Get velocity before freezing
+            let freeze_info = if let Some(body) = nova.world.get_body(body_handle) {
                 if body.body_type == RigidBodyType::Dynamic {
-                    // Freeze: set velocity to zero
+                    Some((
+                        to_bevy_vec3(body.linear_velocity),
+                        to_bevy_vec3(body.angular_velocity),
+                    ))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            if let Some((lin_vel, ang_vel)) = freeze_info {
+                // Now freeze the body
+                if let Some(body) = nova.world.get_body_mut(body_handle) {
                     body.linear_velocity = nova::prelude::Vec3::ZERO;
                     body.angular_velocity = nova::prelude::Vec3::ZERO;
+                }
 
-                    if let Some(&entity) = handle_to_entity.bodies.get(&body_handle) {
-                        commands.entity(entity).insert(FrozenBody);
-                    }
+                if let Some(&entity) = handle_to_entity.bodies.get(&body_handle) {
+                    commands.entity(entity).insert(FrozenBody {
+                        original_linear_velocity: lin_vel,
+                        original_angular_velocity: ang_vel,
+                    });
                 }
             }
         }
@@ -539,27 +566,87 @@ fn clone_system(
     };
 
     if mouse.just_pressed(MouseButton::Left) {
-        if let Some((body_handle, _, _, hit_point)) = raycast_nova(&nova, origin, direction, 100.0)
+        if let Some((body_handle, collider_handle, _, _)) = raycast_nova(&nova, origin, direction, 100.0)
         {
-            if let Some(body) = nova.world.get_body(body_handle) {
-                if body.body_type == RigidBodyType::Dynamic {
-                    // Clone at a slight offset
-                    let clone_pos = to_bevy_vec3(body.position) + Vec3::new(1.0, 0.5, 0.0);
-
-                    // Create a simple sphere clone for now
-                    spawn_sphere(
-                        &mut nova,
-                        &mut commands,
-                        &mut meshes,
-                        &mut materials,
-                        &mut handle_to_entity,
-                        clone_pos,
-                        0.5,
-                        Color::srgb(0.8, 0.4, 0.8), // Purple for clones
-                        PhysicsMaterialType::Normal,
-                    );
-                    stats.total_spawned += 1;
+            // Get body and collider info first
+            let clone_info = if let Some(body) = nova.world.get_body(body_handle) {
+                if body.body_type != RigidBodyType::Dynamic {
+                    return;
                 }
+                let clone_pos = to_bevy_vec3(body.position) + Vec3::new(1.0, 0.5, 0.0);
+                let mass = body.mass;
+
+                // Get shape from collider
+                if let Some(collider) = nova.world.get_collider(collider_handle) {
+                    Some((clone_pos, mass, collider.shape.clone(), collider.material.friction, collider.material.restitution))
+                } else {
+                    None
+                }
+            } else {
+                None
+            };
+
+            // Now spawn the clone outside the borrow
+            if let Some((clone_pos, mass, shape, friction, restitution)) = clone_info {
+                let clone_color = Color::srgb(0.8, 0.4, 0.8); // Purple tint for clones
+
+                match &shape {
+                    CollisionShape::Sphere(sphere) => {
+                        spawn_sphere(
+                            &mut nova,
+                            &mut commands,
+                            &mut meshes,
+                            &mut materials,
+                            &mut handle_to_entity,
+                            clone_pos,
+                            sphere.radius,
+                            clone_color,
+                            PhysicsMaterialType::Normal,
+                        );
+                    }
+                    CollisionShape::Box(box_shape) => {
+                        spawn_box(
+                            &mut nova,
+                            &mut commands,
+                            &mut meshes,
+                            &mut materials,
+                            &mut handle_to_entity,
+                            clone_pos,
+                            to_bevy_vec3(box_shape.half_extents),
+                            clone_color,
+                            PhysicsMaterialType::Normal,
+                        );
+                    }
+                    CollisionShape::Capsule(capsule) => {
+                        spawn_capsule(
+                            &mut nova,
+                            &mut commands,
+                            &mut meshes,
+                            &mut materials,
+                            &mut handle_to_entity,
+                            clone_pos,
+                            capsule.radius,
+                            capsule.half_height,
+                            clone_color,
+                            PhysicsMaterialType::Normal,
+                        );
+                    }
+                    // For other shapes, fall back to a sphere approximation
+                    _ => {
+                        spawn_sphere(
+                            &mut nova,
+                            &mut commands,
+                            &mut meshes,
+                            &mut materials,
+                            &mut handle_to_entity,
+                            clone_pos,
+                            0.5,
+                            clone_color,
+                            PhysicsMaterialType::Normal,
+                        );
+                    }
+                }
+                stats.total_spawned += 1;
             }
         }
     }
@@ -814,6 +901,57 @@ fn painter_system(
     }
 }
 
+/// Resize tool - scale objects with scroll wheel
+fn resize_system(
+    mouse: Res<ButtonInput<MouseButton>>,
+    mut scroll_events: EventReader<bevy::input::mouse::MouseWheel>,
+    camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
+    selected: Res<SelectedSlot>,
+    hotbar: Res<Hotbar>,
+    nova: Res<NovaWorld>,
+    handle_to_entity: Res<HandleToEntity>,
+    mut transforms: Query<&mut Transform>,
+    mut resize_target: Local<Option<(Entity, RigidBodyHandle)>>,
+) {
+    if hotbar.get_item(selected.index) != Some(&HotbarItem::Resize) {
+        *resize_target = None;
+        return;
+    }
+
+    let Some((origin, direction)) = get_camera_ray(&camera_query) else {
+        return;
+    };
+
+    // Left click selects target for resizing
+    if mouse.just_pressed(MouseButton::Left) {
+        if let Some((body_handle, _, _, _)) = raycast_nova(&nova, origin, direction, 100.0) {
+            if let Some(body) = nova.world.get_body(body_handle) {
+                if body.body_type == RigidBodyType::Dynamic {
+                    if let Some(&entity) = handle_to_entity.bodies.get(&body_handle) {
+                        *resize_target = Some((entity, body_handle));
+                    }
+                }
+            }
+        }
+    }
+
+    // Right click clears selection
+    if mouse.just_pressed(MouseButton::Right) {
+        *resize_target = None;
+    }
+
+    // Scroll to resize selected object
+    if let Some((entity, _body_handle)) = *resize_target {
+        for event in scroll_events.read() {
+            let scale_delta = 1.0 + event.y * 0.1;
+            if let Ok(mut transform) = transforms.get_mut(entity) {
+                let new_scale = (transform.scale * scale_delta).clamp(Vec3::splat(0.1), Vec3::splat(5.0));
+                transform.scale = new_scale;
+            }
+        }
+    }
+}
+
 fn tool_scroll_adjust(
     mut scroll_events: EventReader<bevy::input::mouse::MouseWheel>,
     mut grab_state: ResMut<GrabState>,
@@ -822,6 +960,11 @@ fn tool_scroll_adjust(
     selected: Res<SelectedSlot>,
     hotbar: Res<Hotbar>,
 ) {
+    // Skip if resize tool is selected (it handles its own scroll)
+    if hotbar.get_item(selected.index) == Some(&HotbarItem::Resize) {
+        return;
+    }
+
     for event in scroll_events.read() {
         let delta = event.y;
 

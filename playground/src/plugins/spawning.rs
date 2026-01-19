@@ -890,7 +890,16 @@ pub fn spawn_compound(
     handle_to_entity.bodies.insert(body_handle, entity);
 }
 
-/// Spawn a portal (visual effect ring)
+/// Portal component for teleportation
+#[derive(Component)]
+pub struct PortalEntity {
+    pub destination: Vec3,
+    pub radius: f32,
+    pub preserve_velocity: bool,
+    pub cooldown: f32,
+}
+
+/// Spawn a portal (visual effect ring with teleportation)
 pub fn spawn_portal(
     _nova: &mut NovaWorld,
     commands: &mut Commands,
@@ -899,7 +908,9 @@ pub fn spawn_portal(
     _handle_to_entity: &mut HandleToEntity,
     position: Vec3,
 ) {
-    // Portal is just a visual ring effect
+    // Create destination offset (portals teleport 10 units forward by default)
+    let destination = position + Vec3::new(10.0, 0.0, 0.0);
+
     commands.spawn((
         Mesh3d(meshes.add(Torus::new(0.3, 1.5))),
         MeshMaterial3d(materials.add(StandardMaterial {
@@ -910,6 +921,12 @@ pub fn spawn_portal(
         })),
         Transform::from_translation(position)
             .with_rotation(Quat::from_rotation_x(std::f32::consts::FRAC_PI_2)),
+        PortalEntity {
+            destination,
+            radius: 1.5,
+            preserve_velocity: true,
+            cooldown: 0.0,
+        },
         SpawnedObject,
     ));
 }

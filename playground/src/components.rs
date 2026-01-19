@@ -47,8 +47,12 @@ pub struct Ground;
 pub struct Wall;
 
 /// Marker for frozen bodies (velocity set to zero)
+/// Stores original velocities for restoration when unfreezing
 #[derive(Component)]
-pub struct FrozenBody;
+pub struct FrozenBody {
+    pub original_linear_velocity: Vec3,
+    pub original_angular_velocity: Vec3,
+}
 
 /// Visual indicator for sleeping bodies
 #[derive(Component)]

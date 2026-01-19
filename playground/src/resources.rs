@@ -423,13 +423,6 @@ impl JointType {
     }
 }
 
-/// State for resize tool
-#[derive(Resource, Default)]
-pub struct ResizeState {
-    pub target: Option<RigidBodyHandle>,
-    pub original_scale: f32,
-}
-
 /// State for magnet tool
 #[derive(Resource)]
 pub struct MagnetState {
@@ -609,64 +602,6 @@ impl Default for ToolSettings {
     }
 }
 
-/// Spawning options
-#[derive(Resource)]
-pub struct SpawnSettings {
-    pub default_mass: f32,
-    pub default_size: f32,
-    pub random_colors: bool,
-    pub random_sizes: bool,
-    pub spawn_velocity: bool,
-}
-
-impl Default for SpawnSettings {
-    fn default() -> Self {
-        Self {
-            default_mass: 1.0,
-            default_size: 0.5,
-            random_colors: true,
-            random_sizes: false,
-            spawn_velocity: false,
-        }
-    }
-}
-
-/// Gravity zone entity data
-#[derive(Resource, Default)]
-pub struct GravityZones {
-    pub zones: Vec<GravityZoneData>,
-}
-
-#[derive(Clone)]
-pub struct GravityZoneData {
-    pub center: bevy::math::Vec3,
-    pub radius: f32,
-    pub gravity: bevy::math::Vec3,
-    pub falloff: bool,
-}
-
-/// Force field entity data
-#[derive(Resource, Default)]
-pub struct ForceFields {
-    pub fields: Vec<ForceFieldData>,
-}
-
-#[derive(Clone)]
-pub struct ForceFieldData {
-    pub center: bevy::math::Vec3,
-    pub radius: f32,
-    pub force: bevy::math::Vec3,
-    pub field_type: ForceFieldType,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum ForceFieldType {
-    Directional,  // Push in one direction
-    Radial,       // Push away from center
-    Vortex,       // Spin around center
-    Turbulence,   // Random forces
-}
-
 /// Statistics tracking
 #[derive(Resource, Default)]
 pub struct PlaygroundStats {
@@ -685,38 +620,3 @@ pub struct InventoryState {
     pub selected_category: usize,
 }
 
-pub const INVENTORY_CATEGORIES: [&str; 4] = ["Shapes", "Tools", "Presets", "Special"];
-
-/// Slow-mo effect state
-#[derive(Resource)]
-pub struct SlowMoEffect {
-    pub target_scale: f32,
-    pub lerp_speed: f32,
-}
-
-impl Default for SlowMoEffect {
-    fn default() -> Self {
-        Self {
-            target_scale: 1.0,
-            lerp_speed: 5.0,
-        }
-    }
-}
-
-/// Trail effect settings
-#[derive(Resource)]
-pub struct TrailSettings {
-    pub enabled: bool,
-    pub min_velocity: f32,
-    pub max_points: usize,
-}
-
-impl Default for TrailSettings {
-    fn default() -> Self {
-        Self {
-            enabled: true,
-            min_velocity: 5.0,
-            max_points: 20,
-        }
-    }
-}

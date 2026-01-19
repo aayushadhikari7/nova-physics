@@ -18,6 +18,8 @@ impl Plugin for EffectsPlugin {
                 (
                     apply_gravity_zones,
                     apply_force_fields,
+                    apply_conveyor_belts,
+                    apply_portal_teleportation,
                     update_zone_visuals,
                     spawn_explosion_effects,
                     update_trails,
@@ -151,6 +153,98 @@ fn apply_force_fields(
     }
 }
 
+// ============ CONVEYOR BELTS ============
+
+use crate::plugins::spawning::ConveyorBelt;
+
+/// Apply conveyor belt forces to objects on top of them
+fn apply_conveyor_belts(
+    mut nova: ResMut<NovaWorld>,
+    conveyors: Query<(&Transform, &ConveyorBelt)>,
+    bodies: Query<&PhysicsBody, With<DynamicBody>>,
+) {
+    for (conveyor_transform, conveyor) in conveyors.iter() {
+        let conveyor_pos = conveyor_transform.translation;
+        let conveyor_size = Vec3::new(2.0, 0.3, 0.8); // Approximate size
+
+        for body in bodies.iter() {
+            if let Some(nova_body) = nova.world.get_body(body.handle) {
+                let body_pos = to_bevy_vec3(nova_body.position);
+
+                // Check if body is approximately on top of conveyor
+                let dx = (body_pos.x - conveyor_pos.x).abs();
+                let dz = (body_pos.z - conveyor_pos.z).abs();
+                let dy = body_pos.y - conveyor_pos.y;
+
+                // Body is on conveyor if within bounds and slightly above
+                if dx < conveyor_size.x && dz < conveyor_size.z && dy > 0.0 && dy < 1.5 {
+                    if let Some(body_mut) = nova.world.get_body_mut(body.handle) {
+                        // Apply conveyor force in the belt direction
+                        let force = to_nova_vec3(conveyor.direction * conveyor.speed * 10.0);
+                        body_mut.apply_force(force);
+                    }
+                }
+            }
+        }
+    }
+}
+
+// ============ PORTAL TELEPORTATION ============
+
+use crate::plugins::spawning::PortalEntity;
+
+/// Teleport bodies that enter portals
+fn apply_portal_teleportation(
+    mut nova: ResMut<NovaWorld>,
+    mut portals: Query<(&Transform, &mut PortalEntity)>,
+    bodies: Query<&PhysicsBody, With<DynamicBody>>,
+    time: Res<Time>,
+) {
+    let dt = time.delta_secs();
+
+    for (portal_transform, mut portal) in portals.iter_mut() {
+        // Update cooldown
+        portal.cooldown = (portal.cooldown - dt).max(0.0);
+
+        if portal.cooldown > 0.0 {
+            continue;
+        }
+
+        let portal_pos = portal_transform.translation;
+
+        for body in bodies.iter() {
+            if let Some(nova_body) = nova.world.get_body(body.handle) {
+                let body_pos = to_bevy_vec3(nova_body.position);
+                let distance = body_pos.distance(portal_pos);
+
+                // Check if body is within portal radius
+                if distance < portal.radius {
+                    // Teleport the body
+                    if let Some(body_mut) = nova.world.get_body_mut(body.handle) {
+                        // Calculate offset from portal center
+                        let offset = body_pos - portal_pos;
+
+                        // Move to destination
+                        body_mut.position = to_nova_vec3(portal.destination + offset);
+
+                        // Optionally clear velocity
+                        if !portal.preserve_velocity {
+                            body_mut.linear_velocity = nova::prelude::Vec3::ZERO;
+                            body_mut.angular_velocity = nova::prelude::Vec3::ZERO;
+                        }
+
+                        body_mut.wake_up();
+
+                        // Set cooldown to prevent immediate re-teleportation
+                        portal.cooldown = 0.5;
+                        break; // Only teleport one body per frame per portal
+                    }
+                }
+            }
+        }
+    }
+}
+
 // ============ ZONE VISUALS ============
 
 #[derive(Component)]
@@ -256,8 +350,8 @@ fn spawn_explosion_effects(
 /// Spawn an explosion visual at a position
 pub fn spawn_explosion_visual(
     commands: &mut Commands,
-    meshes: &mut ResMut<Assets<Mesh>>,
-    materials: &mut ResMut<Assets<StandardMaterial>>,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
     position: Vec3,
     radius: f32,
 ) {
@@ -275,6 +369,7 @@ pub fn spawn_explosion_visual(
             max_radius: radius,
             start_radius: 0.5,
         },
+        SpawnedObject,
     ));
 }
 
