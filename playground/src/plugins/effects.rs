@@ -6,9 +6,11 @@ use rand::Rng;
 
 use crate::components::{
     AutoDespawn, Breakable, DynamicBody, Explosive, Glowing, MagnetObject, PhysicsBody,
-    PhysicsMaterialType, Spinner, SpawnedObject,
+    Spinner, SpawnedObject,
 };
 use crate::convert::{to_bevy_vec3, to_nova_vec3};
+use crate::plugins::settings::GameSettings;
+use crate::plugins::visual_effects::ScreenShakeEvent;
 use crate::resources::{HandleToEntity, NovaWorld, PlaygroundStats};
 
 pub struct EffectsPlugin;
@@ -416,6 +418,7 @@ fn check_explosive_objects(
     mut explosives: Query<(Entity, &PhysicsBody, &mut Explosive, &Transform)>,
     bodies: Query<&PhysicsBody, With<DynamicBody>>,
     mut stats: ResMut<PlaygroundStats>,
+    mut screen_shake: EventWriter<ScreenShakeEvent>,
 ) {
     let mut to_explode = Vec::new();
 
@@ -488,6 +491,11 @@ fn check_explosive_objects(
 
         // Spawn explosion visual
         spawn_explosion_visual(&mut commands, &mut meshes, &mut materials, position, radius);
+
+        // Trigger screen shake (intensity based on explosion force)
+        let shake_intensity = (force / 1000.0).clamp(0.3, 1.0);
+        screen_shake.send(ScreenShakeEvent { intensity: shake_intensity });
+
         stats.total_explosions += 1;
         stats.total_deleted += 1;
     }
@@ -557,50 +565,55 @@ fn update_zone_visuals(
     mut gizmos: Gizmos,
     gravity_zones: Query<(&Transform, &GravityZoneEntity)>,
     force_fields: Query<(&Transform, &ForceFieldEntity)>,
+    settings: Res<GameSettings>,
 ) {
-    // Draw gravity zones
+    // Apply zone opacity from settings
+    let opacity = settings.zone_opacity * 0.2; // Base opacity is 0.2, scaled by setting
+    let arrow_opacity = settings.zone_opacity * 0.5;
+
+    // Draw gravity zones - soft mint color
     for (transform, zone) in gravity_zones.iter() {
         let pos = transform.translation;
 
-        // Draw sphere outline
+        // Draw sphere outline - soft mint with adjustable opacity
         gizmos.sphere(
             Isometry3d::from_translation(pos),
             zone.radius,
-            Color::srgba(0.2, 0.8, 0.2, 0.3),
+            Color::srgba(0.6, 0.9, 0.7, opacity),
         );
 
-        // Draw gravity direction arrow
+        // Draw gravity direction arrow - subtle
         let arrow_end = pos + zone.gravity.normalize_or_zero() * 3.0;
-        gizmos.arrow(pos, arrow_end, Color::srgb(0.3, 1.0, 0.3));
+        gizmos.arrow(pos, arrow_end, Color::srgba(0.6, 0.9, 0.7, arrow_opacity));
     }
 
-    // Draw force fields
+    // Draw force fields - soft pastel colors with adjustable opacity
     for (transform, field) in force_fields.iter() {
         let pos = transform.translation;
 
         let color = match field.force_type {
-            ForceFieldMode::Directional(_) => Color::srgba(0.8, 0.8, 0.2, 0.3),
-            ForceFieldMode::Radial => Color::srgba(0.8, 0.2, 0.2, 0.3),
-            ForceFieldMode::Vortex => Color::srgba(0.2, 0.2, 0.8, 0.3),
-            ForceFieldMode::Turbulence => Color::srgba(0.8, 0.2, 0.8, 0.3),
+            ForceFieldMode::Directional(_) => Color::srgba(0.95, 0.90, 0.70, opacity), // Cream
+            ForceFieldMode::Radial => Color::srgba(0.95, 0.70, 0.65, opacity),         // Coral
+            ForceFieldMode::Vortex => Color::srgba(0.60, 0.75, 0.95, opacity),         // Sky blue
+            ForceFieldMode::Turbulence => Color::srgba(0.80, 0.70, 0.90, opacity),     // Lavender
         };
 
         gizmos.sphere(Isometry3d::from_translation(pos), field.radius, color);
 
-        // Draw direction indicator
+        // Draw direction indicator - subtle
         match field.force_type {
             ForceFieldMode::Directional(dir) => {
-                gizmos.arrow(pos, pos + dir.normalize() * 3.0, Color::srgb(1.0, 1.0, 0.3));
+                gizmos.arrow(pos, pos + dir.normalize() * 3.0, Color::srgba(0.95, 0.90, 0.70, arrow_opacity));
             }
             ForceFieldMode::Vortex => {
-                // Draw rotation indicator
+                // Draw rotation indicator - subtle blue
                 for i in 0..8 {
                     let angle = i as f32 * std::f32::consts::TAU / 8.0;
                     let start = pos + Vec3::new(angle.cos(), 0.0, angle.sin()) * field.radius * 0.5;
                     let end_angle = angle + 0.5;
                     let end =
                         pos + Vec3::new(end_angle.cos(), 0.0, end_angle.sin()) * field.radius * 0.5;
-                    gizmos.line(start, end, Color::srgb(0.3, 0.3, 1.0));
+                    gizmos.line(start, end, Color::srgba(0.60, 0.75, 0.95, arrow_opacity * 0.8));
                 }
             }
             _ => {}
@@ -658,11 +671,12 @@ pub fn spawn_explosion_visual(
     position: Vec3,
     radius: f32,
 ) {
+    // Soft, warm white explosion for clean aesthetic
     commands.spawn((
         Mesh3d(meshes.add(Sphere::new(1.0))),
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgba(1.0, 0.6, 0.1, 0.5),
-            emissive: LinearRgba::new(10.0, 5.0, 0.5, 1.0),
+            base_color: Color::srgba(1.0, 0.95, 0.9, 0.4), // Soft warm white
+            emissive: LinearRgba::new(3.0, 2.8, 2.5, 1.0), // Soft glow
             alpha_mode: AlphaMode::Blend,
             ..default()
         })),
@@ -690,7 +704,13 @@ fn update_trails(
     mut gizmos: Gizmos,
     mut emitters: Query<(&mut TrailEmitter, &Transform, &PhysicsBody)>,
     nova: Res<NovaWorld>,
+    settings: Res<GameSettings>,
 ) {
+    // Skip trail updates if disabled in settings
+    if !settings.trail_enabled {
+        return;
+    }
+
     for (mut trail, transform, body) in emitters.iter_mut() {
         let pos = transform.translation;
 
@@ -716,11 +736,11 @@ fn update_trails(
             }
         }
 
-        // Draw trail
+        // Draw trail - soft white/gray for clean look
         if trail.points.len() > 1 {
             for i in 0..trail.points.len() - 1 {
                 let alpha = i as f32 / trail.points.len() as f32;
-                let color = Color::srgba(1.0, 0.5, 0.1, alpha * 0.5);
+                let color = Color::srgba(0.7, 0.75, 0.8, alpha * 0.3); // Soft gray, subtle
                 gizmos.line(trail.points[i], trail.points[i + 1], color);
             }
         }
@@ -743,7 +763,7 @@ pub fn spawn_gravity_zone(
         .spawn((
             Mesh3d(meshes.add(Sphere::new(radius))),
             MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgba(0.2, 0.8, 0.2, 0.15),
+                base_color: Color::srgba(0.6, 0.9, 0.7, 0.1), // Soft mint, low opacity
                 alpha_mode: AlphaMode::Blend,
                 cull_mode: None,
                 ..default()
@@ -771,11 +791,12 @@ pub fn spawn_force_field(
     force_type: ForceFieldMode,
     strength: f32,
 ) -> Entity {
+    // Soft pastel colors for clean aesthetic
     let color = match force_type {
-        ForceFieldMode::Directional(_) => Color::srgba(0.8, 0.8, 0.2, 0.15),
-        ForceFieldMode::Radial => Color::srgba(0.8, 0.2, 0.2, 0.15),
-        ForceFieldMode::Vortex => Color::srgba(0.2, 0.2, 0.8, 0.15),
-        ForceFieldMode::Turbulence => Color::srgba(0.8, 0.2, 0.8, 0.15),
+        ForceFieldMode::Directional(_) => Color::srgba(0.95, 0.90, 0.70, 0.1), // Cream
+        ForceFieldMode::Radial => Color::srgba(0.95, 0.70, 0.65, 0.1),         // Coral
+        ForceFieldMode::Vortex => Color::srgba(0.60, 0.75, 0.95, 0.1),         // Sky blue
+        ForceFieldMode::Turbulence => Color::srgba(0.80, 0.70, 0.90, 0.1),     // Lavender
     };
 
     commands
@@ -915,11 +936,12 @@ pub fn spawn_slow_motion_zone(
     radius: f32,
     factor: f32,
 ) -> Entity {
+    // Soft sky blue for clean aesthetic
     commands
         .spawn((
             Mesh3d(meshes.add(Sphere::new(radius))),
             MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgba(0.1, 0.5, 0.8, 0.2),
+                base_color: Color::srgba(0.60, 0.80, 0.95, 0.12), // Soft sky blue
                 alpha_mode: AlphaMode::Blend,
                 cull_mode: None,
                 ..default()
@@ -975,12 +997,15 @@ pub fn spawn_bounce_pad(
     size: Vec3,
     strength: f32,
 ) -> Entity {
+    // Soft blush pink for clean aesthetic
     commands
         .spawn((
             Mesh3d(meshes.add(Cuboid::new(size.x, size.y, size.z))),
             MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(1.0, 0.3, 0.7),
-                emissive: LinearRgba::new(1.0, 0.2, 0.5, 1.0),
+                base_color: Color::srgb(0.95, 0.80, 0.85), // Soft blush
+                emissive: LinearRgba::new(0.3, 0.2, 0.25, 1.0), // Subtle glow
+                metallic: 0.2,
+                perceptual_roughness: 0.4,
                 ..default()
             })),
             Transform::from_translation(position),

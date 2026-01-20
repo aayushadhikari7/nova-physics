@@ -2,6 +2,7 @@
 
 use bevy::prelude::*;
 
+use crate::plugins::settings::GameSettings;
 use crate::resources::{
     CannonState, DebugVisuals, GrabState, Hotbar, HotbarItem, InventoryState, JointToolState,
     MagnetState, NovaWorld, PainterState, PlaygroundStats, SelectedSlot,
@@ -13,16 +14,53 @@ impl Plugin for InventoryPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<Hotbar>()
             .init_resource::<PlaygroundStats>()
+            .init_resource::<SmoothedFps>()
             .add_systems(Startup, setup_ui)
             .add_systems(
                 Update,
                 (
+                    update_smoothed_fps,
                     update_ui,
                     update_inventory_panel,
                     update_stats,
                     inventory_item_click,
                 ),
             );
+    }
+}
+
+/// Resource for smoothed FPS display (prevents flickering)
+#[derive(Resource)]
+pub struct SmoothedFps {
+    pub value: f32,
+    pub samples: Vec<f32>,
+}
+
+impl Default for SmoothedFps {
+    fn default() -> Self {
+        Self {
+            value: 60.0,
+            samples: Vec::with_capacity(60),
+        }
+    }
+}
+
+/// Update smoothed FPS with rolling average
+fn update_smoothed_fps(mut fps: ResMut<SmoothedFps>, time: Res<Time>) {
+    let dt = time.delta_secs();
+    if dt > 0.0 && dt < 1.0 {
+        // Ignore outliers
+        fps.samples.push(1.0 / dt);
+
+        // Keep last 60 samples (1 second at 60fps)
+        if fps.samples.len() > 60 {
+            fps.samples.remove(0);
+        }
+
+        // Calculate average
+        if !fps.samples.is_empty() {
+            fps.value = fps.samples.iter().sum::<f32>() / fps.samples.len() as f32;
+        }
     }
 }
 
@@ -584,7 +622,8 @@ fn update_ui(
     magnet_state: Res<MagnetState>,
     painter_state: Res<PainterState>,
     debug_visuals: Res<DebugVisuals>,
-    time: Res<Time>,
+    smoothed_fps: Res<SmoothedFps>,
+    settings: Res<GameSettings>,
     mut hud_texts: Query<
         (
             Option<&BodyCountText>,
@@ -703,8 +742,12 @@ fn update_ui(
         if body_count.is_some() {
             **text = format!("Bodies: {}", nova.world.body_count());
         } else if fps.is_some() {
-            let fps_val = 1.0 / time.delta_secs();
-            **text = format!("FPS: {:.0}", fps_val);
+            // Use smoothed FPS value for stable display
+            if settings.show_fps {
+                **text = format!("FPS: {:.0}", smoothed_fps.value);
+            } else {
+                **text = String::new();
+            }
         } else if time_scale.is_some() {
             **text = if nova.paused {
                 "PAUSED".to_string()

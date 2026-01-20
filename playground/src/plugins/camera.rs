@@ -1,9 +1,12 @@
 //! First-person camera controller
 
+use bevy::core_pipeline::bloom::Bloom;
+use bevy::core_pipeline::tonemapping::Tonemapping;
 use bevy::input::mouse::AccumulatedMouseMotion;
 use bevy::prelude::*;
 use bevy::window::{CursorGrabMode, PrimaryWindow};
 
+use crate::plugins::settings::GameSettings;
 use crate::resources::CameraSettings;
 
 pub struct CameraPlugin;
@@ -12,7 +15,7 @@ impl Plugin for CameraPlugin {
     fn build(&self, app: &mut App) {
         app.init_resource::<CameraSettings>()
             .add_systems(Startup, setup_camera)
-            .add_systems(Update, (camera_look, camera_move, toggle_cursor_grab));
+            .add_systems(Update, (camera_look, camera_move, toggle_cursor_grab, sync_camera_settings));
     }
 }
 
@@ -36,16 +39,31 @@ fn setup_camera(mut commands: Commands, mut windows: Query<&mut Window, With<Pri
     // Spawn the camera at a good starting position for the BIG ROOM
     commands.spawn((
         Camera3d::default(),
+        Camera {
+            hdr: true, // Enable HDR for bloom
+            ..default()
+        },
         Transform::from_xyz(0.0, 8.0, 35.0).looking_at(Vec3::ZERO, Vec3::Y),
         PlayerCamera::default(),
-        // Fog for distance culling
+        // Soft bloom for clean/modern aesthetic
+        Bloom {
+            intensity: 0.15,           // Subtle, not overwhelming
+            low_frequency_boost: 0.6,  // Soft, dreamy glow
+            low_frequency_boost_curvature: 0.8,
+            high_pass_frequency: 0.9,  // Only bright things glow
+            composite_mode: bevy::core_pipeline::bloom::BloomCompositeMode::Additive,
+            ..default()
+        },
+        // Natural film-like tonemapping
+        Tonemapping::AgX,
+        // Soft fog - light colored for clean look
         bevy::pbr::DistanceFog {
-            color: Color::srgba(0.15, 0.17, 0.2, 1.0),
-            directional_light_color: Color::srgba(1.0, 0.95, 0.85, 0.5),
-            directional_light_exponent: 30.0,
+            color: Color::srgba(0.92, 0.94, 0.96, 1.0), // Light blue-gray fog
+            directional_light_color: Color::srgba(1.0, 0.98, 0.95, 0.3),
+            directional_light_exponent: 20.0,
             falloff: bevy::pbr::FogFalloff::Linear {
-                start: 80.0,
-                end: 350.0,
+                start: 120.0,
+                end: 400.0,
             },
         },
     ));
@@ -61,6 +79,7 @@ fn camera_look(
     mut camera: Query<(&mut Transform, &mut PlayerCamera)>,
     mouse_motion: Res<AccumulatedMouseMotion>,
     settings: Res<CameraSettings>,
+    game_settings: Res<GameSettings>,
     windows: Query<&Window, With<PrimaryWindow>>,
 ) {
     let Ok((mut transform, mut player_camera)) = camera.get_single_mut() else {
@@ -78,7 +97,10 @@ fn camera_look(
 
     if delta != Vec2::ZERO {
         player_camera.yaw -= delta.x * settings.sensitivity;
-        player_camera.pitch -= delta.y * settings.sensitivity;
+
+        // Apply invert_y setting from GameSettings
+        let pitch_mult = if game_settings.invert_y { 1.0 } else { -1.0 };
+        player_camera.pitch += delta.y * settings.sensitivity * pitch_mult;
 
         // Clamp pitch to prevent flipping
         player_camera.pitch = player_camera.pitch.clamp(-1.5, 1.5);
@@ -183,6 +205,28 @@ fn toggle_cursor_grab(
                     window.cursor_options.visible = true;
                 }
             }
+        }
+    }
+}
+
+/// Sync CameraSettings with GameSettings changes
+fn sync_camera_settings(
+    game_settings: Res<GameSettings>,
+    mut camera_settings: ResMut<CameraSettings>,
+    mut projection_query: Query<&mut Projection, With<PlayerCamera>>,
+) {
+    if !game_settings.is_changed() {
+        return;
+    }
+
+    // Update camera sensitivity from game settings
+    camera_settings.sensitivity = game_settings.mouse_sensitivity * 0.003; // Base sensitivity scaled by user preference
+    camera_settings.fov = game_settings.fov;
+
+    // Apply FOV to camera projection
+    if let Ok(mut projection) = projection_query.get_single_mut() {
+        if let Projection::Perspective(ref mut persp) = *projection {
+            persp.fov = game_settings.fov.to_radians();
         }
     }
 }

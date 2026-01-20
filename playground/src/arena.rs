@@ -55,14 +55,14 @@ pub fn setup_arena(
         .build();
     let ground_collider_handle = nova.world.insert_collider(ground_collider);
 
-    // Floor with a nice tile-like pattern color
+    // Clean white floor for modern aesthetic
     let ground_entity = commands
         .spawn((
             Mesh3d(meshes.add(Cuboid::new(ground_size.x, ground_size.y, ground_size.z))),
             MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.35, 0.38, 0.42),
-                perceptual_roughness: 0.6,
-                metallic: 0.1,
+                base_color: Color::srgb(0.92, 0.93, 0.95), // Near-white
+                perceptual_roughness: 0.4,  // Slightly reflective
+                metallic: 0.05,
                 ..default()
             })),
             Transform::from_translation(ground_pos),
@@ -105,8 +105,8 @@ pub fn setup_arena(
         .spawn((
             Mesh3d(meshes.add(Cuboid::new(ground_size.x, ground_size.y, ground_size.z))),
             MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.9, 0.92, 0.95),
-                perceptual_roughness: 0.95,
+                base_color: Color::srgb(0.98, 0.98, 1.0), // Pure white ceiling
+                perceptual_roughness: 0.9,
                 ..default()
             })),
             Transform::from_translation(ceiling_pos),
@@ -124,7 +124,8 @@ pub fn setup_arena(
     handle_to_entity.bodies.insert(ceiling_handle, ceiling_entity);
 
     // ============ WALLS (4 sides) ============
-    let wall_color = Color::srgba(0.45, 0.48, 0.52, 0.7);
+    // Light, semi-transparent walls for clean look
+    let wall_color = Color::srgba(0.88, 0.90, 0.93, 0.6);
 
     let walls = [
         // Back wall (-Z)
@@ -193,28 +194,28 @@ pub fn setup_arena(
         handle_to_entity.bodies.insert(wall_handle, wall_entity);
     }
 
-    // ============ LIGHTING - BRIGHT FOR BIG ROOM ============
+    // ============ LIGHTING - SOFT & BRIGHT FOR CLEAN LOOK ============
 
-    // Main directional light (sun-like)
+    // Main directional light (soft, natural)
     commands.spawn((
         DirectionalLight {
-            illuminance: 30000.0,
+            illuminance: 25000.0,  // Slightly softer
             shadows_enabled: true,
-            color: Color::srgb(1.0, 0.98, 0.95),
+            color: Color::srgb(1.0, 0.99, 0.97), // Warm white
             ..default()
         },
-        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.7, 0.5, 0.0)),
+        Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.6, 0.4, 0.0)),
     ));
 
-    // Bright ambient light for overall illumination
+    // Bright ambient for even illumination (no harsh shadows)
     commands.insert_resource(AmbientLight {
-        color: Color::srgb(0.95, 0.97, 1.0),
-        brightness: 800.0,
+        color: Color::srgb(0.98, 0.98, 1.0), // Pure white ambient
+        brightness: 1000.0, // Brighter for clean look
     });
 
-    // Ceiling light fixtures - grid for big room
+    // Ceiling light fixtures - clean, minimal design
     let light_height = room_height - 3.0;
-    let light_intensity = 2000000.0; // Brighter for bigger room
+    let light_intensity = 1500000.0; // Softer lights
 
     // Sparse grid of ceiling lights (every 80 units)
     for x_idx in -3..=3 {
@@ -222,13 +223,13 @@ pub fn setup_arena(
             let x = x_idx as f32 * 80.0;
             let z = z_idx as f32 * 80.0;
 
-            // Point light
+            // Point light - pure white
             commands.spawn((
                 PointLight {
-                    color: Color::srgb(1.0, 0.98, 0.9),
+                    color: Color::srgb(1.0, 1.0, 1.0), // Pure white
                     intensity: light_intensity,
                     radius: 1.0,
-                    range: 120.0,
+                    range: 100.0,
                     shadows_enabled: false,
                     ..default()
                 },
@@ -236,55 +237,56 @@ pub fn setup_arena(
                 LightFixture,
             ));
 
-            // Light fixture visual
+            // Light fixture visual - clean white panel
             commands.spawn((
-                Mesh3d(meshes.add(Cuboid::new(3.0, 0.5, 3.0))),
+                Mesh3d(meshes.add(Cuboid::new(2.5, 0.3, 2.5))), // Thinner, sleeker
                 MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: Color::srgb(1.0, 1.0, 0.95),
-                    emissive: LinearRgba::new(8.0, 8.0, 7.0, 1.0),
+                    base_color: Color::srgb(1.0, 1.0, 1.0),
+                    emissive: LinearRgba::new(3.0, 3.0, 3.0, 1.0), // Softer glow
                     ..default()
                 })),
-                Transform::from_translation(Vec3::new(x, light_height + 0.5, z)),
+                Transform::from_translation(Vec3::new(x, light_height + 0.3, z)),
                 LightFixture,
             ));
         }
     }
 
     // ============ FLOOR DECORATIONS ============
-    // Add grid lines on the floor for visual reference (every 50 units for big room)
+    // Subtle gray grid lines for clean look
     let line_material = materials.add(StandardMaterial {
-        base_color: Color::srgb(0.25, 0.28, 0.32),
-        perceptual_roughness: 0.8,
+        base_color: Color::srgb(0.82, 0.84, 0.86), // Light gray - subtle
+        perceptual_roughness: 0.6,
         ..default()
     });
 
-    // Grid lines every 50 units
+    // Grid lines every 50 units - thinner for minimal look
     for i in -5..=5 {
         let offset = i as f32 * 50.0;
 
         // X-direction lines
         commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(room_width - 20.0, 0.02, 0.3))),
+            Mesh3d(meshes.add(Cuboid::new(room_width - 20.0, 0.015, 0.15))), // Thinner
             MeshMaterial3d(line_material.clone()),
             Transform::from_translation(Vec3::new(0.0, 0.01, offset)),
         ));
 
         // Z-direction lines
         commands.spawn((
-            Mesh3d(meshes.add(Cuboid::new(0.3, 0.02, room_length - 20.0))),
+            Mesh3d(meshes.add(Cuboid::new(0.15, 0.015, room_length - 20.0))), // Thinner
             MeshMaterial3d(line_material.clone()),
             Transform::from_translation(Vec3::new(offset, 0.01, 0.0)),
         ));
     }
 
-    // Center marker (bigger)
+    // Center marker - subtle coral accent (matches pastel palette)
     commands.spawn((
-        Mesh3d(meshes.add(Cuboid::new(5.0, 0.05, 5.0))),
+        Mesh3d(meshes.add(Cuboid::new(3.0, 0.03, 3.0))), // Smaller, thinner
         MeshMaterial3d(materials.add(StandardMaterial {
-            base_color: Color::srgb(0.6, 0.3, 0.3),
-            perceptual_roughness: 0.5,
+            base_color: Color::srgb(0.95, 0.7, 0.65), // Soft coral
+            perceptual_roughness: 0.4,
+            metallic: 0.1,
             ..default()
         })),
-        Transform::from_translation(Vec3::new(0.0, 0.025, 0.0)),
+        Transform::from_translation(Vec3::new(0.0, 0.02, 0.0)),
     ));
 }

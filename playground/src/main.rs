@@ -16,6 +16,7 @@ use bevy::window::{PresentMode, WindowMode};
 use plugins::{
     CameraPlugin, ConsolePlugin, DebugPlugin, EffectsPlugin, InputPlugin, InventoryPlugin,
     PhysicsPlugin, SettingsPlugin, SpawningPlugin, TimeControlPlugin, ToolsPlugin, VehiclePlugin,
+    VisualEffectsPlugin,
 };
 
 fn main() {
@@ -44,6 +45,7 @@ fn main() {
             EffectsPlugin,
             ConsolePlugin,
             VehiclePlugin,
+            VisualEffectsPlugin,
         ))
         // Setup systems
         .add_systems(Startup, arena::setup_arena)

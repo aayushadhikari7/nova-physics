@@ -9,8 +9,10 @@ use crate::components::{
     AutoDespawn, Breakable, DynamicBody, Explosive, Glowing, MagnetObject, PhysicsBody,
     PhysicsCollider, PhysicsMaterialType, SpawnedObject, Spinner,
 };
-use crate::convert::{to_bevy_vec3, to_nova_vec3};
+use crate::convert::to_nova_vec3;
 use crate::plugins::camera::PlayerCamera;
+use crate::plugins::effects::TrailEmitter;
+use crate::plugins::settings::{ColorTheme, GameSettings};
 use crate::resources::{HandleToEntity, Hotbar, HotbarItem, NovaWorld, SelectedSlot};
 
 pub struct SpawningPlugin;
@@ -22,17 +24,84 @@ impl Plugin for SpawningPlugin {
     }
 }
 
-/// Spawn colors for variety
-const SPAWN_COLORS: [Color; 8] = [
-    Color::srgb(0.8, 0.3, 0.3), // Red
-    Color::srgb(0.3, 0.8, 0.3), // Green
-    Color::srgb(0.3, 0.3, 0.8), // Blue
-    Color::srgb(0.8, 0.8, 0.3), // Yellow
-    Color::srgb(0.8, 0.3, 0.8), // Magenta
-    Color::srgb(0.3, 0.8, 0.8), // Cyan
-    Color::srgb(0.8, 0.5, 0.2), // Orange
-    Color::srgb(0.6, 0.4, 0.8), // Purple
+/// Color palettes for different themes
+const PASTEL_COLORS: [Color; 8] = [
+    Color::srgb(0.95, 0.60, 0.55), // Coral
+    Color::srgb(0.60, 0.90, 0.70), // Mint
+    Color::srgb(0.60, 0.75, 0.95), // Sky blue
+    Color::srgb(0.95, 0.90, 0.70), // Cream/butter
+    Color::srgb(0.80, 0.70, 0.90), // Lavender
+    Color::srgb(0.60, 0.90, 0.90), // Aqua
+    Color::srgb(0.95, 0.75, 0.60), // Peach
+    Color::srgb(0.95, 0.75, 0.80), // Blush pink
 ];
+
+const VIBRANT_COLORS: [Color; 8] = [
+    Color::srgb(1.0, 0.3, 0.3),  // Bright Red
+    Color::srgb(0.3, 1.0, 0.3),  // Bright Green
+    Color::srgb(0.3, 0.5, 1.0),  // Bright Blue
+    Color::srgb(1.0, 1.0, 0.3),  // Bright Yellow
+    Color::srgb(1.0, 0.3, 1.0),  // Bright Magenta
+    Color::srgb(0.3, 1.0, 1.0),  // Bright Cyan
+    Color::srgb(1.0, 0.6, 0.2),  // Bright Orange
+    Color::srgb(1.0, 0.5, 0.7),  // Bright Pink
+];
+
+const CLASSIC_COLORS: [Color; 8] = [
+    Color::srgb(0.8, 0.2, 0.2),  // Red
+    Color::srgb(0.2, 0.7, 0.3),  // Green
+    Color::srgb(0.2, 0.4, 0.8),  // Blue
+    Color::srgb(0.9, 0.8, 0.2),  // Yellow
+    Color::srgb(0.6, 0.3, 0.7),  // Purple
+    Color::srgb(0.3, 0.7, 0.7),  // Teal
+    Color::srgb(0.9, 0.5, 0.2),  // Orange
+    Color::srgb(0.5, 0.3, 0.2),  // Brown
+];
+
+const NEON_COLORS: [Color; 8] = [
+    Color::srgb(1.0, 0.1, 0.4),  // Neon Pink
+    Color::srgb(0.1, 1.0, 0.5),  // Neon Green
+    Color::srgb(0.2, 0.5, 1.0),  // Neon Blue
+    Color::srgb(1.0, 1.0, 0.1),  // Neon Yellow
+    Color::srgb(0.8, 0.1, 1.0),  // Neon Purple
+    Color::srgb(0.1, 1.0, 1.0),  // Neon Cyan
+    Color::srgb(1.0, 0.5, 0.1),  // Neon Orange
+    Color::srgb(1.0, 0.2, 0.6),  // Neon Magenta
+];
+
+const MONOCHROME_COLORS: [Color; 8] = [
+    Color::srgb(0.9, 0.9, 0.9),  // White
+    Color::srgb(0.75, 0.75, 0.75), // Light Gray
+    Color::srgb(0.6, 0.6, 0.6),  // Medium Light Gray
+    Color::srgb(0.5, 0.5, 0.5),  // Gray
+    Color::srgb(0.4, 0.4, 0.4),  // Medium Gray
+    Color::srgb(0.3, 0.3, 0.3),  // Dark Gray
+    Color::srgb(0.2, 0.2, 0.2),  // Darker Gray
+    Color::srgb(0.15, 0.15, 0.15), // Near Black
+];
+
+/// Get color palette for the current theme
+pub fn get_theme_colors(theme: ColorTheme) -> &'static [Color; 8] {
+    match theme {
+        ColorTheme::Pastel => &PASTEL_COLORS,
+        ColorTheme::Vibrant => &VIBRANT_COLORS,
+        ColorTheme::Classic => &CLASSIC_COLORS,
+        ColorTheme::Neon => &NEON_COLORS,
+        ColorTheme::Monochrome => &MONOCHROME_COLORS,
+    }
+}
+
+/// Get material properties based on theme (neon gets emissive)
+pub fn get_theme_material_properties(theme: ColorTheme) -> (f32, f32, bool) {
+    // Returns (metallic, roughness, is_emissive)
+    match theme {
+        ColorTheme::Pastel => (0.3, 0.4, false),
+        ColorTheme::Vibrant => (0.4, 0.3, false),
+        ColorTheme::Classic => (0.2, 0.5, false),
+        ColorTheme::Neon => (0.5, 0.2, true),  // Emissive for neon!
+        ColorTheme::Monochrome => (0.6, 0.3, false),
+    }
+}
 
 fn spawn_system(
     mouse: Res<ButtonInput<MouseButton>>,
@@ -44,6 +113,7 @@ fn spawn_system(
     selected: Res<SelectedSlot>,
     hotbar: Res<Hotbar>,
     mut handle_to_entity: ResMut<HandleToEntity>,
+    settings: Res<GameSettings>,
 ) {
     if !mouse.just_pressed(MouseButton::Left) {
         return;
@@ -65,14 +135,16 @@ fn spawn_system(
 
     let origin = global_transform.translation();
     let direction = global_transform.forward().as_vec3();
-    let spawn_pos = origin + direction * 3.0;
+    let spawn_pos = origin + direction * settings.spawn_distance;
 
     let mut rng = rand::thread_rng();
-    let color = SPAWN_COLORS[rng.gen_range(0..SPAWN_COLORS.len())];
+    // Use color theme from settings
+    let theme_colors = get_theme_colors(settings.color_theme);
+    let color = theme_colors[rng.gen_range(0..theme_colors.len())];
 
     match item {
         HotbarItem::SpawnBox => {
-            spawn_box(
+            spawn_box_with_options(
                 &mut nova,
                 &mut commands,
                 &mut meshes,
@@ -82,10 +154,12 @@ fn spawn_system(
                 Vec3::splat(0.5),
                 color,
                 PhysicsMaterialType::Normal,
+                settings.color_theme,
+                settings.trail_enabled,
             );
         }
         HotbarItem::SpawnSphere => {
-            spawn_sphere(
+            spawn_sphere_with_options(
                 &mut nova,
                 &mut commands,
                 &mut meshes,
@@ -95,6 +169,8 @@ fn spawn_system(
                 0.5,
                 color,
                 PhysicsMaterialType::Normal,
+                settings.color_theme,
+                settings.trail_enabled,
             );
         }
         HotbarItem::SpawnCapsule => {
@@ -532,6 +608,23 @@ pub fn spawn_box(
     color: Color,
     material_type: PhysicsMaterialType,
 ) -> (Entity, RigidBodyHandle) {
+    spawn_box_with_options(nova, commands, meshes, materials, handle_to_entity, position, half_extents, color, material_type, ColorTheme::Pastel, false)
+}
+
+/// Spawn box with full options including theme and trail support
+pub fn spawn_box_with_options(
+    nova: &mut NovaWorld,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    handle_to_entity: &mut HandleToEntity,
+    position: Vec3,
+    half_extents: Vec3,
+    color: Color,
+    material_type: PhysicsMaterialType,
+    theme: ColorTheme,
+    trail_enabled: bool,
+) -> (Entity, RigidBodyHandle) {
     let nova_pos = to_nova_vec3(position);
     let nova_half = to_nova_vec3(half_extents);
 
@@ -554,30 +647,52 @@ pub fn spawn_box(
         .build();
     let collider_handle = nova.world.insert_collider(collider);
 
-    // Create Bevy entity
-    let entity = commands
-        .spawn((
-            Mesh3d(meshes.add(Cuboid::new(
-                half_extents.x * 2.0,
-                half_extents.y * 2.0,
-                half_extents.z * 2.0,
-            ))),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: color,
-                ..default()
-            })),
-            Transform::from_translation(position),
-            PhysicsBody {
-                handle: body_handle,
-            },
-            PhysicsCollider {
-                handle: collider_handle,
-            },
-            DynamicBody,
-            SpawnedObject,
-            material_type,
-        ))
-        .id();
+    // Get theme-based material properties
+    let (metallic, roughness, is_emissive) = get_theme_material_properties(theme);
+    let linear = color.to_linear();
+    let emissive = if is_emissive {
+        LinearRgba::new(linear.red * 2.0, linear.green * 2.0, linear.blue * 2.0, 1.0)
+    } else {
+        LinearRgba::BLACK
+    };
+
+    // Create Bevy entity with theme-based materials
+    let mut entity_commands = commands.spawn((
+        Mesh3d(meshes.add(Cuboid::new(
+            half_extents.x * 2.0,
+            half_extents.y * 2.0,
+            half_extents.z * 2.0,
+        ))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: color,
+            metallic,
+            perceptual_roughness: roughness,
+            emissive,
+            ..default()
+        })),
+        Transform::from_translation(position),
+        PhysicsBody {
+            handle: body_handle,
+        },
+        PhysicsCollider {
+            handle: collider_handle,
+        },
+        DynamicBody,
+        SpawnedObject,
+        material_type,
+    ));
+
+    // Add trail emitter if enabled
+    if trail_enabled {
+        entity_commands.insert(TrailEmitter {
+            points: Vec::new(),
+            max_points: 30,
+            min_velocity: 3.0,
+            last_pos: position,
+        });
+    }
+
+    let entity = entity_commands.id();
 
     handle_to_entity.bodies.insert(body_handle, entity);
     handle_to_entity.colliders.insert(collider_handle, entity);
@@ -595,6 +710,23 @@ pub fn spawn_sphere(
     radius: f32,
     color: Color,
     material_type: PhysicsMaterialType,
+) -> (Entity, RigidBodyHandle) {
+    spawn_sphere_with_options(nova, commands, meshes, materials, handle_to_entity, position, radius, color, material_type, ColorTheme::Pastel, false)
+}
+
+/// Spawn sphere with full options including theme and trail support
+pub fn spawn_sphere_with_options(
+    nova: &mut NovaWorld,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    handle_to_entity: &mut HandleToEntity,
+    position: Vec3,
+    radius: f32,
+    color: Color,
+    material_type: PhysicsMaterialType,
+    theme: ColorTheme,
+    trail_enabled: bool,
 ) -> (Entity, RigidBodyHandle) {
     let nova_pos = to_nova_vec3(position);
 
@@ -617,26 +749,48 @@ pub fn spawn_sphere(
         .build();
     let collider_handle = nova.world.insert_collider(collider);
 
-    // Create Bevy entity
-    let entity = commands
-        .spawn((
-            Mesh3d(meshes.add(Sphere::new(radius))),
-            MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: color,
-                ..default()
-            })),
-            Transform::from_translation(position),
-            PhysicsBody {
-                handle: body_handle,
-            },
-            PhysicsCollider {
-                handle: collider_handle,
-            },
-            DynamicBody,
-            SpawnedObject,
-            material_type,
-        ))
-        .id();
+    // Get theme-based material properties
+    let (metallic, roughness, is_emissive) = get_theme_material_properties(theme);
+    let linear = color.to_linear();
+    let emissive = if is_emissive {
+        LinearRgba::new(linear.red * 2.0, linear.green * 2.0, linear.blue * 2.0, 1.0)
+    } else {
+        LinearRgba::BLACK
+    };
+
+    // Create Bevy entity with theme-based materials
+    let mut entity_commands = commands.spawn((
+        Mesh3d(meshes.add(Sphere::new(radius))),
+        MeshMaterial3d(materials.add(StandardMaterial {
+            base_color: color,
+            metallic: metallic + 0.05, // Slightly more for spheres
+            perceptual_roughness: roughness - 0.05, // Smoother
+            emissive,
+            ..default()
+        })),
+        Transform::from_translation(position),
+        PhysicsBody {
+            handle: body_handle,
+        },
+        PhysicsCollider {
+            handle: collider_handle,
+        },
+        DynamicBody,
+        SpawnedObject,
+        material_type,
+    ));
+
+    // Add trail emitter if enabled
+    if trail_enabled {
+        entity_commands.insert(TrailEmitter {
+            points: Vec::new(),
+            max_points: 30,
+            min_velocity: 3.0,
+            last_pos: position,
+        });
+    }
+
+    let entity = entity_commands.id();
 
     handle_to_entity.bodies.insert(body_handle, entity);
     handle_to_entity.colliders.insert(collider_handle, entity);
@@ -680,12 +834,14 @@ pub fn spawn_capsule(
         .build();
     let collider_handle = nova.world.insert_collider(collider);
 
-    // Create Bevy entity with capsule mesh
+    // Create Bevy entity with capsule mesh - polished look
     let entity = commands
         .spawn((
             Mesh3d(meshes.add(Capsule3d::new(radius, half_height * 2.0))),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: color,
+                metallic: 0.3,
+                perceptual_roughness: 0.4,
                 ..default()
             })),
             Transform::from_translation(position),
@@ -724,7 +880,7 @@ pub fn spawn_chain(
 
     for i in 0..link_count {
         let pos = start_position + Vec3::new(0.0, -(i as f32) * link_spacing, 0.0);
-        let color = SPAWN_COLORS[i % SPAWN_COLORS.len()];
+        let color = PASTEL_COLORS[i % PASTEL_COLORS.len()];
 
         let (_, body_handle) = spawn_sphere(
             nova,
@@ -785,12 +941,14 @@ pub fn spawn_cylinder(
         .build();
     let collider_handle = nova.world.insert_collider(collider);
 
-    // Visual cylinder mesh
+    // Visual cylinder mesh - polished look
     let entity = commands
         .spawn((
             Mesh3d(meshes.add(Cylinder::new(radius, half_height * 2.0))),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: color,
+                metallic: 0.3,
+                perceptual_roughness: 0.4,
                 ..default()
             })),
             Transform::from_translation(position),
@@ -849,12 +1007,14 @@ pub fn spawn_cone(
         .build();
     let collider_handle = nova.world.insert_collider(collider);
 
-    // Visual cone mesh
+    // Visual cone mesh - polished look
     let entity = commands
         .spawn((
             Mesh3d(meshes.add(Cone::new(radius, height))),
             MeshMaterial3d(materials.add(StandardMaterial {
                 base_color: color,
+                metallic: 0.3,
+                perceptual_roughness: 0.4,
                 ..default()
             })),
             Transform::from_translation(position),

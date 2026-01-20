@@ -25,9 +25,20 @@ pub struct GameSettings {
     pub shadow_quality: ShadowQuality,
     pub ambient_occlusion: bool,
     pub bloom: bool,
+    pub bloom_intensity: f32,
     pub anti_aliasing: AntiAliasing,
     pub fov: f32,
     pub max_fps: MaxFps,
+
+    // Visual Effects
+    pub fog_enabled: bool,
+    pub fog_density: f32,
+    pub vignette_enabled: bool,
+    pub vignette_intensity: f32,
+    pub screen_shake_intensity: f32,
+    pub color_theme: ColorTheme,
+    pub trail_enabled: bool,
+    pub zone_opacity: f32,
 
     // Display
     pub show_fps: bool,
@@ -82,9 +93,20 @@ impl Default for GameSettings {
             shadow_quality: ShadowQuality::High,
             ambient_occlusion: true,
             bloom: true,
+            bloom_intensity: 0.15,
             anti_aliasing: AntiAliasing::Msaa4x,
             fov: 75.0,
             max_fps: MaxFps::Fps120,
+
+            // Visual Effects
+            fog_enabled: true,
+            fog_density: 1.0,
+            vignette_enabled: true,
+            vignette_intensity: 0.3,
+            screen_shake_intensity: 1.0,
+            color_theme: ColorTheme::Pastel,
+            trail_enabled: true,
+            zone_opacity: 1.0,
 
             // Display
             show_fps: true,
@@ -414,10 +436,44 @@ pub struct SettingsMenuState {
     pub pending_changes: bool,
 }
 
+/// Color theme for objects
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ColorTheme {
+    #[default]
+    Pastel,   // Soft, clean colors (coral, mint, sky, etc.)
+    Vibrant,  // Bright, saturated colors
+    Classic,  // Original colors
+    Neon,     // Cyberpunk neon glow
+    Monochrome, // Grayscale
+}
+
+impl ColorTheme {
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::Pastel => "Pastel (Clean)",
+            Self::Vibrant => "Vibrant",
+            Self::Classic => "Classic",
+            Self::Neon => "Neon",
+            Self::Monochrome => "Monochrome",
+        }
+    }
+
+    pub fn next(&self) -> Self {
+        match self {
+            Self::Pastel => Self::Vibrant,
+            Self::Vibrant => Self::Classic,
+            Self::Classic => Self::Neon,
+            Self::Neon => Self::Monochrome,
+            Self::Monochrome => Self::Pastel,
+        }
+    }
+}
+
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum SettingsTab {
     #[default]
     Graphics,
+    Visual,
     Display,
     Physics,
     Controls,
@@ -430,6 +486,7 @@ impl SettingsTab {
     pub fn name(&self) -> &'static str {
         match self {
             Self::Graphics => "Graphics",
+            Self::Visual => "Visual FX",
             Self::Display => "Display",
             Self::Physics => "Physics",
             Self::Controls => "Controls",
@@ -442,6 +499,7 @@ impl SettingsTab {
     pub fn all() -> &'static [Self] {
         &[
             Self::Graphics,
+            Self::Visual,
             Self::Display,
             Self::Physics,
             Self::Controls,
@@ -453,7 +511,8 @@ impl SettingsTab {
 
     pub fn next(&self) -> Self {
         match self {
-            Self::Graphics => Self::Display,
+            Self::Graphics => Self::Visual,
+            Self::Visual => Self::Display,
             Self::Display => Self::Physics,
             Self::Physics => Self::Controls,
             Self::Controls => Self::Audio,
@@ -466,7 +525,8 @@ impl SettingsTab {
     pub fn prev(&self) -> Self {
         match self {
             Self::Graphics => Self::Accessibility,
-            Self::Display => Self::Graphics,
+            Self::Visual => Self::Graphics,
+            Self::Display => Self::Visual,
             Self::Physics => Self::Display,
             Self::Controls => Self::Physics,
             Self::Audio => Self::Controls,
@@ -528,6 +588,50 @@ fn update_settings(
                 }
                 if keyboard.just_pressed(KeyCode::KeyB) {
                     settings.bloom = !settings.bloom;
+                }
+            }
+            SettingsTab::Visual => {
+                // [B] Bloom toggle, [Up/Down] Bloom intensity
+                if keyboard.just_pressed(KeyCode::KeyB) {
+                    settings.bloom = !settings.bloom;
+                }
+                if keyboard.just_pressed(KeyCode::ArrowUp) {
+                    settings.bloom_intensity = (settings.bloom_intensity + 0.05).min(1.0);
+                }
+                if keyboard.just_pressed(KeyCode::ArrowDown) {
+                    settings.bloom_intensity = (settings.bloom_intensity - 0.05).max(0.0);
+                }
+                // [F] Fog toggle, [Shift+Up/Down] Fog density
+                if keyboard.just_pressed(KeyCode::KeyF) {
+                    settings.fog_enabled = !settings.fog_enabled;
+                }
+                if keyboard.pressed(KeyCode::ShiftLeft) {
+                    if keyboard.just_pressed(KeyCode::ArrowUp) {
+                        settings.fog_density = (settings.fog_density + 0.1).min(2.0);
+                    }
+                    if keyboard.just_pressed(KeyCode::ArrowDown) {
+                        settings.fog_density = (settings.fog_density - 0.1).max(0.0);
+                    }
+                }
+                // [G] Vignette toggle
+                if keyboard.just_pressed(KeyCode::KeyG) {
+                    settings.vignette_enabled = !settings.vignette_enabled;
+                }
+                // [T] Color theme cycle
+                if keyboard.just_pressed(KeyCode::KeyT) {
+                    settings.color_theme = settings.color_theme.next();
+                }
+                // [R] Trails toggle
+                if keyboard.just_pressed(KeyCode::KeyR) {
+                    settings.trail_enabled = !settings.trail_enabled;
+                }
+                // [Z] Zone opacity
+                if keyboard.just_pressed(KeyCode::KeyZ) {
+                    settings.zone_opacity = if settings.zone_opacity > 0.5 { 0.3 } else { 1.0 };
+                }
+                // [E] Screen shake toggle
+                if keyboard.just_pressed(KeyCode::KeyE) {
+                    settings.explosion_screen_shake = !settings.explosion_screen_shake;
                 }
             }
             SettingsTab::Display => {
