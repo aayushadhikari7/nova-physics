@@ -18,6 +18,6 @@ pub use nova_constraints::{
     PrismaticJoint,
 };
 pub use nova_core::{ColliderHandle, JointHandle, PhysicsEvents, RigidBodyHandle};
-pub use nova_dynamics::{RigidBody, RigidBodyType};
+pub use nova_dynamics::{RigidBody, RigidBodyType, SolverConfig};
 pub use nova_math::{Aabb, Isometry, Mat3, Quat, Vec3};
 pub use nova_pipeline::{PipelineConfig, SimulationStep};

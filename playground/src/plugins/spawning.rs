@@ -477,6 +477,95 @@ fn spawn_system(
                 spawn_pos + Vec3::new(0.0, 3.0, 0.0),
             );
         }
+        // === SCIENCE & FUN ===
+        HotbarItem::SpawnBuckyball => {
+            crate::presets::spawn_buckyball(
+                &mut nova,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                &mut handle_to_entity,
+                spawn_pos + Vec3::new(0.0, 3.0, 0.0),
+            );
+        }
+        HotbarItem::SpawnDNAHelix => {
+            crate::presets::spawn_dna_helix(
+                &mut nova,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                &mut handle_to_entity,
+                spawn_pos,
+            );
+        }
+        HotbarItem::SpawnSolarSystem => {
+            crate::presets::spawn_solar_system(
+                &mut nova,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                &mut handle_to_entity,
+                spawn_pos,
+            );
+        }
+        HotbarItem::SpawnAtom => {
+            crate::presets::spawn_atom(
+                &mut nova,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                &mut handle_to_entity,
+                spawn_pos,
+            );
+        }
+        HotbarItem::SpawnGeodesicDome => {
+            crate::presets::spawn_geodesic_dome(
+                &mut nova,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                &mut handle_to_entity,
+                spawn_pos,
+            );
+        }
+        HotbarItem::SpawnTensegrity => {
+            crate::presets::spawn_tensegrity(
+                &mut nova,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                &mut handle_to_entity,
+                spawn_pos,
+            );
+        }
+        HotbarItem::SpawnMobiusChain => {
+            crate::presets::spawn_mobius_chain(
+                &mut nova,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                &mut handle_to_entity,
+                spawn_pos,
+            );
+        }
+        HotbarItem::SpawnPendulumClock => {
+            crate::presets::spawn_pendulum_clock(
+                &mut nova,
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                &mut handle_to_entity,
+                spawn_pos,
+            );
+        }
+        HotbarItem::SpawnBlackHole => {
+            crate::presets::spawn_black_hole_preset(
+                &mut commands,
+                &mut meshes,
+                &mut materials,
+                spawn_pos,
+            );
+        }
         // === SPECIAL ITEMS ===
         HotbarItem::GravityZone => {
             crate::plugins::effects::spawn_gravity_zone(

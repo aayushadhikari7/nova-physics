@@ -114,8 +114,8 @@ pub mod prelude {
     // Collision groups
     pub use nova_collision::CollisionGroups;
 
-    // Rigid body types
-    pub use nova_dynamics::{RigidBody, RigidBodyType};
+    // Rigid body types and solver config
+    pub use nova_dynamics::{RigidBody, RigidBodyType, SolverConfig};
 
     // Joints
     pub use nova_constraints::{

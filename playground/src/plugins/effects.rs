@@ -835,7 +835,7 @@ fn apply_black_holes(
     mut nova: ResMut<NovaWorld>,
     black_holes: Query<(&Transform, &BlackHole)>,
     mut commands: Commands,
-    handle_to_entity: Res<HandleToEntity>,
+    mut handle_to_entity: ResMut<HandleToEntity>,
 ) {
     for (hole_transform, hole) in black_holes.iter() {
         let hole_pos = hole_transform.translation;
@@ -865,6 +865,7 @@ fn apply_black_holes(
                 commands.entity(entity).despawn_recursive();
             }
             nova.world.remove_body(handle);
+            handle_to_entity.bodies.remove(&handle);
         }
     }
 }

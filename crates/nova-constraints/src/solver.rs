@@ -19,8 +19,8 @@ pub struct JointSolverConfig {
 impl Default for JointSolverConfig {
     fn default() -> Self {
         Self {
-            iterations: 4,
-            warm_start_factor: 0.8,
+            iterations: 12,  // Increased for more stable joints
+            warm_start_factor: 0.9,  // Higher warm start for better convergence
         }
     }
 }

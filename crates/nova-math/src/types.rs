@@ -12,7 +12,9 @@ pub const DEFAULT_LINEAR_DAMPING: f32 = 0.01;
 pub const DEFAULT_ANGULAR_DAMPING: f32 = 0.01;
 
 /// Maximum linear velocity (for stability)
-pub const MAX_LINEAR_VELOCITY: f32 = 500.0;
+/// Capped to prevent tunneling - at 50 m/s with 1/960s substeps,
+/// objects move max 5.2cm per substep which is safe for most colliders
+pub const MAX_LINEAR_VELOCITY: f32 = 50.0;
 
 /// Maximum angular velocity (for stability)
 pub const MAX_ANGULAR_VELOCITY: f32 = 100.0;

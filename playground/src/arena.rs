@@ -55,14 +55,14 @@ pub fn setup_arena(
         .build();
     let ground_collider_handle = nova.world.insert_collider(ground_collider);
 
-    // Clean white floor for modern aesthetic
+    // Medium gray floor for better contrast with objects
     let ground_entity = commands
         .spawn((
             Mesh3d(meshes.add(Cuboid::new(ground_size.x, ground_size.y, ground_size.z))),
             MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.92, 0.93, 0.95), // Near-white
-                perceptual_roughness: 0.4,  // Slightly reflective
-                metallic: 0.05,
+                base_color: Color::srgb(0.35, 0.37, 0.40), // Medium gray
+                perceptual_roughness: 0.7,
+                metallic: 0.02,
                 ..default()
             })),
             Transform::from_translation(ground_pos),
@@ -105,7 +105,7 @@ pub fn setup_arena(
         .spawn((
             Mesh3d(meshes.add(Cuboid::new(ground_size.x, ground_size.y, ground_size.z))),
             MeshMaterial3d(materials.add(StandardMaterial {
-                base_color: Color::srgb(0.98, 0.98, 1.0), // Pure white ceiling
+                base_color: Color::srgb(0.75, 0.77, 0.80), // Light gray ceiling
                 perceptual_roughness: 0.9,
                 ..default()
             })),
@@ -124,8 +124,8 @@ pub fn setup_arena(
     handle_to_entity.bodies.insert(ceiling_handle, ceiling_entity);
 
     // ============ WALLS (4 sides) ============
-    // Light, semi-transparent walls for clean look
-    let wall_color = Color::srgba(0.88, 0.90, 0.93, 0.6);
+    // Medium gray semi-transparent walls for better contrast
+    let wall_color = Color::srgba(0.55, 0.58, 0.62, 0.5);
 
     let walls = [
         // Back wall (-Z)
@@ -207,15 +207,15 @@ pub fn setup_arena(
         Transform::from_rotation(Quat::from_euler(EulerRot::XYZ, -0.6, 0.4, 0.0)),
     ));
 
-    // Bright ambient for even illumination (no harsh shadows)
+    // Moderate ambient for balanced illumination
     commands.insert_resource(AmbientLight {
-        color: Color::srgb(0.98, 0.98, 1.0), // Pure white ambient
-        brightness: 1000.0, // Brighter for clean look
+        color: Color::srgb(0.9, 0.9, 0.92),
+        brightness: 400.0, // Reduced for better contrast
     });
 
     // Ceiling light fixtures - clean, minimal design
     let light_height = room_height - 3.0;
-    let light_intensity = 1500000.0; // Softer lights
+    let light_intensity = 600000.0; // Reduced for better contrast
 
     // Sparse grid of ceiling lights (every 80 units)
     for x_idx in -3..=3 {
@@ -237,12 +237,12 @@ pub fn setup_arena(
                 LightFixture,
             ));
 
-            // Light fixture visual - clean white panel
+            // Light fixture visual - clean panel
             commands.spawn((
                 Mesh3d(meshes.add(Cuboid::new(2.5, 0.3, 2.5))), // Thinner, sleeker
                 MeshMaterial3d(materials.add(StandardMaterial {
-                    base_color: Color::srgb(1.0, 1.0, 1.0),
-                    emissive: LinearRgba::new(3.0, 3.0, 3.0, 1.0), // Softer glow
+                    base_color: Color::srgb(0.95, 0.95, 0.95),
+                    emissive: LinearRgba::new(1.0, 1.0, 1.0, 1.0), // Reduced glow
                     ..default()
                 })),
                 Transform::from_translation(Vec3::new(x, light_height + 0.3, z)),

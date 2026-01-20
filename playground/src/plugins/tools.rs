@@ -309,7 +309,7 @@ fn delete_system(
     camera_query: Query<(&GlobalTransform, &Camera), With<PlayerCamera>>,
     selected: Res<SelectedSlot>,
     hotbar: Res<Hotbar>,
-    handle_to_entity: Res<HandleToEntity>,
+    mut handle_to_entity: ResMut<HandleToEntity>,
     mut stats: ResMut<PlaygroundStats>,
     mut console: ResMut<PhysicsConsole>,
     time: Res<Time>,
@@ -341,10 +341,11 @@ fn delete_system(
         if let Some((body_handle, _, _, _)) = raycast_nova(&nova, origin, direction, 100.0) {
             if let Some(body) = nova.world.get_body(body_handle) {
                 if body.body_type != RigidBodyType::Static {
-                    nova.world.remove_body(body_handle);
                     if let Some(&entity) = handle_to_entity.bodies.get(&body_handle) {
                         commands.entity(entity).despawn_recursive();
                     }
+                    nova.world.remove_body(body_handle);
+                    handle_to_entity.bodies.remove(&body_handle);
                     stats.total_deleted += 1;
                     log_delete(&mut console, 1, time.elapsed_secs());
                     return;
@@ -366,6 +367,7 @@ fn delete_system(
         if let Some((entity, _, body_handle)) = closest {
             if let Some(handle) = body_handle {
                 nova.world.remove_body(handle);
+                handle_to_entity.bodies.remove(&handle);
             }
             commands.entity(entity).despawn_recursive();
             stats.total_deleted += 1;
@@ -392,6 +394,7 @@ fn delete_system(
         for (entity, body_handle) in entities_to_delete {
             if let Some(handle) = body_handle {
                 nova.world.remove_body(handle);
+                handle_to_entity.bodies.remove(&handle);
             }
             commands.entity(entity).despawn_recursive();
             delete_count += 1;

@@ -34,7 +34,7 @@ impl Default for PipelineConfig {
     fn default() -> Self {
         Self {
             gravity: Vec3::new(0.0, -9.81, 0.0),
-            substeps: 2,
+            substeps: 4,  // Increased for better joint/collision stability
             solver_config: SolverConfig::default(),
             sleeping_config: SleepingConfig::default(),
             integrator_type: IntegratorType::SemiImplicitEuler,

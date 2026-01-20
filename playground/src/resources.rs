@@ -13,10 +13,19 @@ pub struct NovaWorld {
 
 impl Default for NovaWorld {
     fn default() -> Self {
-        // Use more substeps for better collision detection (prevents tunneling/phasing)
+        // Use aggressive substeps and solver settings to prevent tunneling
+        let solver_config = nova::prelude::SolverConfig {
+            velocity_iterations: 30,  // More iterations for stability
+            position_iterations: 15,  // More position corrections
+            baumgarte: 0.5,           // Stronger stabilization
+            slop: 0.0005,             // Tighter penetration tolerance
+            max_correction: 0.5,      // Allow larger corrections
+            warm_start_factor: 0.95,  // Better warm starting
+        };
         let config = nova::prelude::PipelineConfig {
-            gravity: nova::prelude::Vec3::new(0.0, -20.0, 0.0), // Stronger gravity
-            substeps: 8, // More substeps = better collision detection
+            gravity: nova::prelude::Vec3::new(0.0, -15.0, 0.0), // Reduced gravity
+            substeps: 8,              // Pipeline substeps
+            solver_config,
             ..Default::default()
         };
         let world = PhysicsWorld::with_config(config);
@@ -91,6 +100,17 @@ pub enum HotbarItem {
     SpawnSpinner,
     SpawnMagnetObj,
     SpawnGlowing,
+
+    // === SCIENCE & FUN ===
+    SpawnBuckyball,      // Buckminsterfullerene C60
+    SpawnDNAHelix,       // Double helix structure
+    SpawnSolarSystem,    // Planets orbiting center
+    SpawnAtom,           // Electron shells around nucleus
+    SpawnGeodesicDome,   // Triangulated dome
+    SpawnTensegrity,     // Floating compression structure
+    SpawnMobiusChain,    // Twisted loop chain
+    SpawnPendulumClock,  // Classic weighted pendulum
+    SpawnBlackHole,      // Objects get sucked in
 }
 
 impl HotbarItem {
@@ -146,6 +166,16 @@ impl HotbarItem {
             Self::SpawnSpinner => "Spinner",
             Self::SpawnMagnetObj => "Magnet Obj",
             Self::SpawnGlowing => "Glowing",
+            // Science & Fun
+            Self::SpawnBuckyball => "Buckyball",
+            Self::SpawnDNAHelix => "DNA Helix",
+            Self::SpawnSolarSystem => "Solar System",
+            Self::SpawnAtom => "Atom",
+            Self::SpawnGeodesicDome => "Geo Dome",
+            Self::SpawnTensegrity => "Tensegrity",
+            Self::SpawnMobiusChain => "Mobius",
+            Self::SpawnPendulumClock => "Clock",
+            Self::SpawnBlackHole => "Black Hole",
         }
     }
 
@@ -198,6 +228,15 @@ impl HotbarItem {
                 | Self::SpawnCannon
                 | Self::SpawnFerrisWheel
                 | Self::SpawnWindmill
+                | Self::SpawnBuckyball
+                | Self::SpawnDNAHelix
+                | Self::SpawnSolarSystem
+                | Self::SpawnAtom
+                | Self::SpawnGeodesicDome
+                | Self::SpawnTensegrity
+                | Self::SpawnMobiusChain
+                | Self::SpawnPendulumClock
+                | Self::SpawnBlackHole
         )
     }
 
@@ -288,6 +327,16 @@ impl HotbarItem {
             Self::SpawnSpinner => "Spin",
             Self::SpawnMagnetObj => "MagO",
             Self::SpawnGlowing => "Glow",
+            // Science & Fun
+            Self::SpawnBuckyball => "Bucky",
+            Self::SpawnDNAHelix => "DNA",
+            Self::SpawnSolarSystem => "Solar",
+            Self::SpawnAtom => "Atom",
+            Self::SpawnGeodesicDome => "Dome",
+            Self::SpawnTensegrity => "Tens",
+            Self::SpawnMobiusChain => "Mobi",
+            Self::SpawnPendulumClock => "Clock",
+            Self::SpawnBlackHole => "BHole",
         }
     }
 }
@@ -354,6 +403,16 @@ impl Default for Hotbar {
                 HotbarItem::SpawnSpinner,
                 HotbarItem::SpawnMagnetObj,
                 HotbarItem::SpawnGlowing,
+                // Page 6: Science & Fun
+                HotbarItem::SpawnBuckyball,
+                HotbarItem::SpawnDNAHelix,
+                HotbarItem::SpawnSolarSystem,
+                HotbarItem::SpawnAtom,
+                HotbarItem::SpawnGeodesicDome,
+                HotbarItem::SpawnTensegrity,
+                HotbarItem::SpawnMobiusChain,
+                HotbarItem::SpawnPendulumClock,
+                HotbarItem::SpawnBlackHole,
             ],
             current_page: 0,
             items_per_page: 9,

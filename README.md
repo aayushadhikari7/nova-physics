@@ -38,27 +38,26 @@ physics-engine/
 
 ## Nova Physics Playground
 
-An interactive 3D physics sandbox built with Bevy for testing and experimenting with the Nova physics engine. Features 45+ spawnable presets, multiple tools, force field zones, and more!
+An interactive 3D physics sandbox built with Bevy for testing and experimenting with the Nova physics engine. Features 50+ spawnable presets across 6 inventory pages, multiple tools, force field zones, and more!
 
 ### Running the Playground
 
 ```bash
-cargo run -p nova-playground
+cargo run -p nova-playground --release
 ```
 
-### Basic Controls
+### Controls
 
 | Key | Action |
 |-----|--------|
 | WASD | Move camera |
 | Space | Move up |
 | Ctrl | Move down |
-| Shift | Sprint (2.5x speed, affects all movement) |
+| Shift | Sprint (2.5x speed) |
 | Mouse | Look around |
 | Middle Mouse / Esc | Toggle cursor lock |
 | 1-9 | Select hotbar slot |
-| Q/Z | Previous/Next hotbar page |
-| E | Open inventory |
+| Q/E | Previous/Next inventory page |
 | P | Pause/Unpause |
 | [ / ] | Slow down / Speed up time |
 | Backspace | Toggle 0.25x slow motion |
@@ -86,97 +85,33 @@ cargo run -p nova-playground
 
 ---
 
-## Preset Spawning Keys
+## Inventory Pages (6 Pages, 54 Items)
 
-### Letter Keys - Basic Presets
+### Page 1: Basic Shapes & Core Tools
+Box, Sphere, Capsule, Gravity Gun, Force Gun, Explosion, Joint Tool, Delete, Freeze
 
-| Key | Preset | Description |
-|-----|--------|-------------|
-| T | Tower | Stack of 10 colored boxes |
-| Y | Pyramid | 5-layer pyramid of boxes |
-| U | Newton's Cradle | Classic physics toy (5 balls) |
-| I | Wrecking Ball | Heavy ball on chain |
-| O | Dominos | Row of 20 falling dominos |
-| H | Ragdoll | Jointed humanoid figure |
-| J | Bridge | Plank bridge with hinge joints |
-| K | Catapult | Working catapult with projectile |
-| L | Pendulum Wall | Grid of swinging pendulums |
-| N | Controllable Car | Drivable vehicle (F to enter/exit) |
-| M | Ferris Wheel | Rotating wheel with cars |
-| Q | Jenga Tower | 15-layer alternating brick tower |
-| X | Pool Table | Billiards triangle + cue ball |
-| Z | Trebuchet | Medieval siege weapon |
-| C | Ramp | Angled ramp (25 degrees) |
+### Page 2: More Tools & Shapes
+Clone, Resize, Magnet, Launch Cannon, Painter, Cylinder, Cone, Compound, Random
 
-### Symbol Keys - More Presets
+### Page 3: Structure Presets
+Chain, Tower, Pyramid, Ragdoll, Newton's Cradle, Wrecking Ball, Dominos, Bridge, Catapult
 
-| Key | Preset | Description |
-|-----|--------|-------------|
-| ` (Backquote) | Bowling Alley | 10 pins + bowling ball |
-| 0 | Seesaw | Working seesaw with heavy ball |
-| - (Minus) | Swing Set | Swing with ball joint |
-| = (Equal) | Brick Wall | 8x6 destructible wall |
-| \ (Backslash) | Ball Avalanche | 40 bouncy spheres |
-| ' (Quote) | Spinning Platform | 4-arm rotating platform |
-| ] | Ball Pit | 50 colorful bouncy balls |
-| , (Comma) | Windmill | 4-blade spinning windmill |
-| . (Period) | Spiral Staircase | 20-step spiral stairs |
-| / (Slash) | Box Rain | 30 random falling boxes |
+### Page 4: More Presets
+Controllable Car, Pendulum Wall, Box Rain, Spiral Staircase, Ball Cannon, Ferris Wheel, Windmill, Gravity Zone, Force Field
 
-### Numpad - BONKERS MODE!
+### Page 5: Special Zones & Objects
+Portal, Trampoline, Conveyor Belt, Fan, Breakable Object, Explosive, Spinner, Magnet Object, Glowing Object
 
-| Key | Preset | Description |
-|-----|--------|-------------|
-| Numpad 1 | Domino Spiral | 100 dominos in spiral pattern |
-| Numpad 2 | Giant Pendulum | Massive swinging pendulum of doom |
-| Numpad 3 | Wrecking Ball vs Tower | Tower + wrecking ball combo |
-| Numpad 4 | Volcano | Erupting balls with upward velocity |
-| Numpad 5 | Staircase of Doom | Stairs with bouncing balls |
-| Numpad 6 | Pachinko | Japanese pinball board |
-| Numpad 7 | Ball Tsunami | 100 balls with forward momentum |
-| Numpad 8 | Chain Reaction | Dominos → Ramp → Tower → Bowling |
-| Numpad 9 | Gyroscope | 3 nested spinning rings |
-| Numpad 0 | Hamster Wheel | Giant running wheel |
-| Numpad + | Chaos Cube | 125 balls exploding outward |
-| Numpad - | Double Pendulum | Chaotic motion demonstration |
-| Numpad * | Meteor Shower | 30 heavy balls raining down |
-| Numpad / | Ball Fountain | 50 balls shooting upward |
-| Numpad . | Fireworks | 5 colorful exploding bursts |
-| Numpad Enter | Bouncy Castle | Rainbow walls with bouncy balls |
-
-### Navigation Keys - ULTRA MODE!
-
-| Key | Preset | Description |
-|-----|--------|-------------|
-| Insert | Marble Run | Zigzag ramps with obstacles |
-| Delete | Ball Cannon | Fires 20 balls forward |
-| Home | Ultimate Destruction | Tower + Pyramids + Wrecking Balls + Avalanche |
-| End | Pendulum Wave | 20 pendulums with varying lengths |
-| Page Up | Ball Tornado | 80 balls in spinning vortex |
-
-### Quick Spawn (F-Keys)
-
-| Key | Action |
-|-----|--------|
-| F5 | Spawn box |
-| F6 | Spawn bouncy sphere |
-| F7 | Spawn heavy ball |
-| F8 | Spawn chain |
-
----
-
-## Force Field Zones
-
-| Key | Zone | Description |
-|-----|------|-------------|
-| G | Gravity Zone | Reverse gravity (upward force) |
-| V | Vortex | Spinning force field |
-| B | Radial Push | Pushes objects away |
-| F9 | Turbulence | Random chaotic forces |
-| F10 | Upward Wind | Strong upward force |
-| F11 | Black Hole | Super strong attractor (deletes nearby objects!) |
-| F12 | Slow Motion Zone | Slows objects passing through |
-| ; (Semicolon) | Bounce Pad | Launches objects upward |
+### Page 6: Science & Fun (NEW!)
+- **Buckyball** - C60 molecular structure with 32 connected spheres
+- **DNA Helix** - Double helix with 24 base pairs
+- **Solar System** - Sun with 6 orbiting planets
+- **Atom** - Nucleus with 3 electron shells
+- **Geodesic Dome** - Icosahedron-based dome structure
+- **Tensegrity** - Floating compression structure
+- **Mobius Chain** - Twisted loop of 36 connected spheres
+- **Pendulum Clock** - Classic weighted pendulum mechanism
+- **Black Hole** - Gravitational attractor (deletes nearby objects!)
 
 ---
 
@@ -327,12 +262,29 @@ cargo test
 cargo bench
 
 # Run the playground
-cargo run -p nova-playground
+cargo run -p nova-playground --release
 
 # Run examples
 cargo run --example falling_boxes
 cargo run --example joints
 ```
+
+## Recent Updates
+
+### Physics Improvements
+- **Enhanced collision detection**: 240Hz fixed timestep with up to 32 substeps (max 1/960s per step)
+- **Improved solver settings**: 30 velocity iterations, 15 position iterations
+- **Better joint stability**: 12 joint solver iterations with 0.95 warm start factor
+- **Anti-tunneling measures**: Max velocity capped at 50 m/s, ground plane enforcement as safety net
+- **Out-of-bounds cleanup**: Objects automatically deleted when leaving room bounds
+
+### Visual Improvements
+- **Balanced lighting**: Reduced brightness for better contrast
+- **Cleaner arena**: Medium gray floor/walls, reduced ambient light
+
+### UI Improvements
+- **Streamlined controls**: Q/E for inventory navigation (no keyboard preset shortcuts)
+- **6 inventory pages**: Organized by category with smooth FPS display
 
 ## License
 

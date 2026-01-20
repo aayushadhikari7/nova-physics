@@ -3380,3 +3380,550 @@ pub fn spawn_ball_tornado(
         }
     }
 }
+
+// ============ SCIENCE & FUN PRESETS ============
+
+/// Spawn BUCKYBALL (Buckminsterfullerene C60) - 60 spheres in a truncated icosahedron
+pub fn spawn_buckyball(
+    nova: &mut NovaWorld,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    handle_to_entity: &mut HandleToEntity,
+    position: Vec3,
+) {
+    let radius = 2.5; // Overall radius
+    let ball_radius = 0.15;
+
+    // Golden ratio for icosahedron
+    let phi = (1.0 + 5.0_f32.sqrt()) / 2.0;
+
+    // Generate vertices of a truncated icosahedron (buckyball shape)
+    // We'll use a simplified approximation with 32 vertices arranged nicely
+    let mut vertices = Vec::new();
+
+    // Create vertices on sphere surface using fibonacci spiral
+    let n = 32;
+    for i in 0..n {
+        let y = 1.0 - (i as f32 / (n - 1) as f32) * 2.0;
+        let r = (1.0 - y * y).sqrt();
+        let theta = phi * i as f32 * std::f32::consts::TAU;
+
+        vertices.push(Vec3::new(
+            theta.cos() * r * radius,
+            y * radius,
+            theta.sin() * r * radius,
+        ));
+    }
+
+    let mut handles = Vec::new();
+
+    // Spawn spheres at each vertex
+    for (i, &vert) in vertices.iter().enumerate() {
+        let color = Color::hsl((i as f32 / n as f32) * 60.0 + 180.0, 0.7, 0.55); // Blue-green
+
+        let (_, handle) = spawn_sphere(
+            nova,
+            commands,
+            meshes,
+            materials,
+            handle_to_entity,
+            position + vert,
+            ball_radius,
+            color,
+            PhysicsMaterialType::Normal,
+        );
+        handles.push(handle);
+    }
+
+    // Connect nearby vertices with distance joints
+    for i in 0..handles.len() {
+        for j in (i + 1)..handles.len() {
+            let dist = (vertices[i] - vertices[j]).length();
+            if dist < radius * 0.7 { // Connect if close enough
+                nova.world.create_distance_joint(
+                    handles[i],
+                    handles[j],
+                    nova::prelude::Vec3::ZERO,
+                    nova::prelude::Vec3::ZERO,
+                    dist,
+                );
+            }
+        }
+    }
+}
+
+/// Spawn DNA HELIX - double helix structure
+pub fn spawn_dna_helix(
+    nova: &mut NovaWorld,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    handle_to_entity: &mut HandleToEntity,
+    position: Vec3,
+) {
+    let turns = 3.0;
+    let height = 8.0;
+    let radius = 1.2;
+    let spheres_per_strand = 24;
+    let ball_radius = 0.2;
+
+    let mut strand1_handles = Vec::new();
+    let mut strand2_handles = Vec::new();
+
+    for i in 0..spheres_per_strand {
+        let t = i as f32 / spheres_per_strand as f32;
+        let angle = t * turns * std::f32::consts::TAU;
+        let y = t * height;
+
+        // Strand 1 (red/orange)
+        let pos1 = position + Vec3::new(angle.cos() * radius, y, angle.sin() * radius);
+        let color1 = Color::hsl(t * 30.0, 0.8, 0.5); // Red to orange
+
+        let (_, h1) = spawn_sphere(
+            nova, commands, meshes, materials, handle_to_entity,
+            pos1, ball_radius, color1, PhysicsMaterialType::Normal,
+        );
+        strand1_handles.push(h1);
+
+        // Strand 2 (blue/purple) - opposite side
+        let pos2 = position + Vec3::new(-angle.cos() * radius, y, -angle.sin() * radius);
+        let color2 = Color::hsl(220.0 + t * 30.0, 0.8, 0.5); // Blue to purple
+
+        let (_, h2) = spawn_sphere(
+            nova, commands, meshes, materials, handle_to_entity,
+            pos2, ball_radius, color2, PhysicsMaterialType::Normal,
+        );
+        strand2_handles.push(h2);
+
+        // Connect the two strands (base pairs)
+        let pair_dist = (pos1 - pos2).length();
+        nova.world.create_distance_joint(
+            h1, h2,
+            nova::prelude::Vec3::ZERO,
+            nova::prelude::Vec3::ZERO,
+            pair_dist,
+        );
+    }
+
+    // Connect along each strand
+    for i in 1..spheres_per_strand {
+        let spacing = height / spheres_per_strand as f32;
+        nova.world.create_distance_joint(
+            strand1_handles[i - 1], strand1_handles[i],
+            nova::prelude::Vec3::ZERO, nova::prelude::Vec3::ZERO,
+            spacing * 1.2,
+        );
+        nova.world.create_distance_joint(
+            strand2_handles[i - 1], strand2_handles[i],
+            nova::prelude::Vec3::ZERO, nova::prelude::Vec3::ZERO,
+            spacing * 1.2,
+        );
+    }
+}
+
+/// Spawn SOLAR SYSTEM - planets orbiting a central sun
+pub fn spawn_solar_system(
+    nova: &mut NovaWorld,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    handle_to_entity: &mut HandleToEntity,
+    position: Vec3,
+) {
+    // Sun (heavy, central)
+    let sun_pos = position + Vec3::new(0.0, 3.0, 0.0);
+    let (_, sun_handle) = spawn_sphere(
+        nova, commands, meshes, materials, handle_to_entity,
+        sun_pos, 1.0,
+        Color::srgb(1.0, 0.8, 0.2), // Yellow
+        PhysicsMaterialType::Heavy,
+    );
+
+    // Make sun very heavy
+    if let Some(body) = nova.world.get_body_mut(sun_handle) {
+        body.mass = 50.0;
+        body.inv_mass = 1.0 / 50.0;
+    }
+
+    // Planets with orbital data: (distance, radius, color, orbital_speed)
+    let planets = [
+        (2.5, 0.15, Color::srgb(0.6, 0.6, 0.6), 4.0),   // Mercury
+        (3.5, 0.25, Color::srgb(0.9, 0.7, 0.5), 3.0),   // Venus
+        (4.5, 0.28, Color::srgb(0.2, 0.5, 0.8), 2.5),   // Earth
+        (5.5, 0.2, Color::srgb(0.8, 0.3, 0.2), 2.0),    // Mars
+        (7.0, 0.5, Color::srgb(0.8, 0.6, 0.4), 1.2),    // Jupiter
+        (9.0, 0.45, Color::srgb(0.9, 0.8, 0.5), 0.9),   // Saturn
+    ];
+
+    for (i, (dist, rad, color, speed)) in planets.iter().enumerate() {
+        let angle = (i as f32 / planets.len() as f32) * std::f32::consts::TAU;
+        let planet_pos = sun_pos + Vec3::new(angle.cos() * dist, 0.0, angle.sin() * dist);
+
+        let (_, planet_handle) = spawn_sphere(
+            nova, commands, meshes, materials, handle_to_entity,
+            planet_pos, *rad, *color, PhysicsMaterialType::Normal,
+        );
+
+        // Give orbital velocity
+        if let Some(body) = nova.world.get_body_mut(planet_handle) {
+            let tangent = Vec3::new(-angle.sin(), 0.0, angle.cos());
+            body.linear_velocity = nova::prelude::Vec3::new(
+                tangent.x * speed,
+                0.0,
+                tangent.z * speed,
+            );
+        }
+    }
+}
+
+/// Spawn ATOM model - nucleus with electron shells
+pub fn spawn_atom(
+    nova: &mut NovaWorld,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    handle_to_entity: &mut HandleToEntity,
+    position: Vec3,
+) {
+    // Nucleus (protons + neutrons)
+    let nucleus_pos = position + Vec3::new(0.0, 2.0, 0.0);
+    let mut rng = rand::thread_rng();
+
+    // Create nucleus cluster
+    for _ in 0..6 {
+        let offset = Vec3::new(
+            rng.gen_range(-0.2..0.2),
+            rng.gen_range(-0.2..0.2),
+            rng.gen_range(-0.2..0.2),
+        );
+        let is_proton = rng.gen_bool(0.5);
+        let color = if is_proton {
+            Color::srgb(0.9, 0.2, 0.2) // Red proton
+        } else {
+            Color::srgb(0.2, 0.2, 0.9) // Blue neutron
+        };
+
+        spawn_sphere(
+            nova, commands, meshes, materials, handle_to_entity,
+            nucleus_pos + offset, 0.2, color, PhysicsMaterialType::Heavy,
+        );
+    }
+
+    // Electron shells
+    let shells = [(1.5, 2), (2.5, 4), (3.5, 6)]; // (radius, electron_count)
+
+    for (shell_radius, electron_count) in shells {
+        for i in 0..electron_count {
+            let angle = (i as f32 / electron_count as f32) * std::f32::consts::TAU;
+            let tilt = rng.gen_range(0.0..std::f32::consts::PI);
+
+            let electron_pos = nucleus_pos + Vec3::new(
+                angle.cos() * tilt.sin() * shell_radius,
+                tilt.cos() * shell_radius * 0.5,
+                angle.sin() * tilt.sin() * shell_radius,
+            );
+
+            let (_, e_handle) = spawn_sphere(
+                nova, commands, meshes, materials, handle_to_entity,
+                electron_pos, 0.1,
+                Color::srgb(1.0, 1.0, 0.2), // Yellow electron
+                PhysicsMaterialType::Bouncy,
+            );
+
+            // Give orbital velocity
+            if let Some(body) = nova.world.get_body_mut(e_handle) {
+                let tangent = Vec3::new(-angle.sin(), 0.0, angle.cos());
+                let speed = 5.0 / shell_radius;
+                body.linear_velocity = nova::prelude::Vec3::new(
+                    tangent.x * speed,
+                    rng.gen_range(-1.0..1.0),
+                    tangent.z * speed,
+                );
+            }
+        }
+    }
+}
+
+/// Spawn GEODESIC DOME - triangulated dome structure
+pub fn spawn_geodesic_dome(
+    nova: &mut NovaWorld,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    handle_to_entity: &mut HandleToEntity,
+    position: Vec3,
+) {
+    let radius = 3.0;
+    let ball_radius = 0.15;
+
+    // Generate icosahedron vertices (basis for geodesic dome)
+    let phi = (1.0 + 5.0_f32.sqrt()) / 2.0;
+    let vertices: Vec<Vec3> = vec![
+        Vec3::new(-1.0, phi, 0.0),
+        Vec3::new(1.0, phi, 0.0),
+        Vec3::new(-1.0, -phi, 0.0),
+        Vec3::new(1.0, -phi, 0.0),
+        Vec3::new(0.0, -1.0, phi),
+        Vec3::new(0.0, 1.0, phi),
+        Vec3::new(0.0, -1.0, -phi),
+        Vec3::new(0.0, 1.0, -phi),
+        Vec3::new(phi, 0.0, -1.0),
+        Vec3::new(phi, 0.0, 1.0),
+        Vec3::new(-phi, 0.0, -1.0),
+        Vec3::new(-phi, 0.0, 1.0),
+    ].into_iter()
+    .map(|v| v.normalize() * radius)
+    .filter(|v| v.y >= -0.2) // Only top half for dome
+    .collect();
+
+    let mut handles = Vec::new();
+
+    for (i, &vert) in vertices.iter().enumerate() {
+        let color = Color::hsl((i as f32 / vertices.len() as f32) * 120.0 + 60.0, 0.6, 0.5);
+
+        let (_, h) = spawn_sphere(
+            nova, commands, meshes, materials, handle_to_entity,
+            position + vert + Vec3::Y * radius,
+            ball_radius, color, PhysicsMaterialType::Normal,
+        );
+        handles.push((h, vert));
+    }
+
+    // Connect vertices that are close
+    for i in 0..handles.len() {
+        for j in (i + 1)..handles.len() {
+            let dist = (handles[i].1 - handles[j].1).length();
+            if dist < radius * 0.8 {
+                nova.world.create_distance_joint(
+                    handles[i].0, handles[j].0,
+                    nova::prelude::Vec3::ZERO, nova::prelude::Vec3::ZERO,
+                    dist,
+                );
+            }
+        }
+    }
+}
+
+/// Spawn TENSEGRITY structure - floating compression structure
+pub fn spawn_tensegrity(
+    nova: &mut NovaWorld,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    handle_to_entity: &mut HandleToEntity,
+    position: Vec3,
+) {
+    let size = 2.0;
+
+    // Tensegrity uses rigid struts (boxes) and tension cables (joints)
+    // Classic 3-strut tensegrity prism
+
+    // Top triangle vertices
+    let top_verts = [
+        Vec3::new(0.0, size, size * 0.866),
+        Vec3::new(size * 0.75, size, -size * 0.433),
+        Vec3::new(-size * 0.75, size, -size * 0.433),
+    ];
+
+    // Bottom triangle vertices (rotated 60 degrees)
+    let bottom_verts = [
+        Vec3::new(size * 0.75, 0.0, size * 0.433),
+        Vec3::new(-size * 0.75, 0.0, size * 0.433),
+        Vec3::new(0.0, 0.0, -size * 0.866),
+    ];
+
+    let mut top_handles = Vec::new();
+    let mut bottom_handles = Vec::new();
+
+    // Spawn corner nodes
+    for (i, &v) in top_verts.iter().enumerate() {
+        let (_, h) = spawn_sphere(
+            nova, commands, meshes, materials, handle_to_entity,
+            position + v + Vec3::Y * 2.0,
+            0.2, Color::srgb(0.9, 0.3, 0.3), PhysicsMaterialType::Normal,
+        );
+        top_handles.push(h);
+    }
+
+    for (i, &v) in bottom_verts.iter().enumerate() {
+        let (_, h) = spawn_sphere(
+            nova, commands, meshes, materials, handle_to_entity,
+            position + v + Vec3::Y * 2.0,
+            0.2, Color::srgb(0.3, 0.3, 0.9), PhysicsMaterialType::Normal,
+        );
+        bottom_handles.push(h);
+    }
+
+    // Connect with distance joints (cables)
+    // Top triangle
+    for i in 0..3 {
+        let next = (i + 1) % 3;
+        let dist = (top_verts[i] - top_verts[next]).length();
+        nova.world.create_distance_joint(
+            top_handles[i], top_handles[next],
+            nova::prelude::Vec3::ZERO, nova::prelude::Vec3::ZERO,
+            dist,
+        );
+    }
+
+    // Bottom triangle
+    for i in 0..3 {
+        let next = (i + 1) % 3;
+        let dist = (bottom_verts[i] - bottom_verts[next]).length();
+        nova.world.create_distance_joint(
+            bottom_handles[i], bottom_handles[next],
+            nova::prelude::Vec3::ZERO, nova::prelude::Vec3::ZERO,
+            dist,
+        );
+    }
+
+    // Diagonal struts (the magic of tensegrity!)
+    for i in 0..3 {
+        let dist = (top_verts[i] - bottom_verts[i]).length();
+        nova.world.create_distance_joint(
+            top_handles[i], bottom_handles[i],
+            nova::prelude::Vec3::ZERO, nova::prelude::Vec3::ZERO,
+            dist,
+        );
+
+        // Cross cables
+        let next = (i + 1) % 3;
+        let cross_dist = (top_verts[i] - bottom_verts[next]).length();
+        nova.world.create_distance_joint(
+            top_handles[i], bottom_handles[next],
+            nova::prelude::Vec3::ZERO, nova::prelude::Vec3::ZERO,
+            cross_dist,
+        );
+    }
+}
+
+/// Spawn MOBIUS CHAIN - twisted loop of connected spheres
+pub fn spawn_mobius_chain(
+    nova: &mut NovaWorld,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    handle_to_entity: &mut HandleToEntity,
+    position: Vec3,
+) {
+    let major_radius = 2.5; // Ring radius
+    let minor_radius = 0.5; // Tube radius
+    let count = 36;
+    let ball_radius = 0.15;
+
+    let mut handles = Vec::new();
+
+    for i in 0..count {
+        let t = i as f32 / count as f32;
+        let u = t * std::f32::consts::TAU; // Around the ring
+        let v = t * std::f32::consts::PI; // Half twist (mobius)
+
+        // Mobius strip parametric equations
+        let x = (major_radius + minor_radius * v.cos()) * u.cos();
+        let y = minor_radius * v.sin();
+        let z = (major_radius + minor_radius * v.cos()) * u.sin();
+
+        let color = Color::hsl(t * 360.0, 0.7, 0.5);
+
+        let (_, h) = spawn_sphere(
+            nova, commands, meshes, materials, handle_to_entity,
+            position + Vec3::new(x, y + 3.0, z),
+            ball_radius, color, PhysicsMaterialType::Normal,
+        );
+        handles.push(h);
+    }
+
+    // Connect in a loop
+    for i in 0..count {
+        let next = (i + 1) % count;
+        nova.world.create_distance_joint(
+            handles[i], handles[next],
+            nova::prelude::Vec3::ZERO, nova::prelude::Vec3::ZERO,
+            0.5,
+        );
+    }
+}
+
+/// Spawn PENDULUM CLOCK - classic weighted pendulum
+pub fn spawn_pendulum_clock(
+    nova: &mut NovaWorld,
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    handle_to_entity: &mut HandleToEntity,
+    position: Vec3,
+) {
+    // Clock frame (static anchor)
+    let anchor_pos = position + Vec3::new(0.0, 5.0, 0.0);
+    let anchor_body = nova.world.create_body()
+        .body_type(nova::prelude::RigidBodyType::Static)
+        .position(nova::prelude::Vec3::new(anchor_pos.x, anchor_pos.y, anchor_pos.z))
+        .build();
+    let anchor_handle = nova.world.insert_body(anchor_body);
+
+    // Pendulum rod
+    let rod_length = 3.0;
+    let rod_pos = anchor_pos - Vec3::Y * (rod_length / 2.0);
+
+    let (_, rod_handle) = spawn_box(
+        nova, commands, meshes, materials, handle_to_entity,
+        rod_pos,
+        Vec3::new(0.05, rod_length / 2.0, 0.05),
+        Color::srgb(0.4, 0.3, 0.2), // Brown wood
+        PhysicsMaterialType::Normal,
+    );
+
+    // Heavy pendulum bob
+    let bob_pos = anchor_pos - Vec3::Y * rod_length;
+    let (_, bob_handle) = spawn_sphere(
+        nova, commands, meshes, materials, handle_to_entity,
+        bob_pos,
+        0.4,
+        Color::srgb(0.8, 0.7, 0.2), // Brass colored
+        PhysicsMaterialType::Heavy,
+    );
+
+    // Make bob extra heavy
+    if let Some(body) = nova.world.get_body_mut(bob_handle) {
+        body.mass = 10.0;
+        body.inv_mass = 0.1;
+    }
+
+    // Connect rod to anchor with hinge
+    nova.world.create_hinge_joint(
+        anchor_handle, rod_handle,
+        nova::prelude::Vec3::ZERO,
+        nova::prelude::Vec3::new(0.0, rod_length / 2.0, 0.0),
+        nova::prelude::Vec3::new(0.0, 0.0, 1.0), // Swing on Z axis
+    );
+
+    // Connect bob to rod
+    nova.world.create_fixed_joint(
+        rod_handle, bob_handle,
+        nova::prelude::Vec3::new(0.0, -rod_length / 2.0, 0.0),
+        nova::prelude::Vec3::ZERO,
+    );
+
+    // Give initial swing
+    if let Some(body) = nova.world.get_body_mut(rod_handle) {
+        body.angular_velocity = nova::prelude::Vec3::new(0.0, 0.0, 1.5);
+    }
+}
+
+/// Spawn BLACK HOLE - gravitational attractor (uses force field)
+pub fn spawn_black_hole_preset(
+    commands: &mut Commands,
+    meshes: &mut Assets<Mesh>,
+    materials: &mut Assets<StandardMaterial>,
+    position: Vec3,
+) {
+    crate::plugins::effects::spawn_black_hole(
+        commands,
+        meshes,
+        materials,
+        position + Vec3::Y * 5.0,
+        20.0,    // Large radius
+        8000.0,  // Strong pull
+    );
+}
